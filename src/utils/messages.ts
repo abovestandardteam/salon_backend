@@ -1,0 +1,48 @@
+export const MESSAGES = {
+  customer: {
+    createSuccess: "Customer created successfully.",
+    updateSuccess: "Customer updated successfully.",
+    deleteSuccess: "Customer deleted successfully.",
+    foundSuccess: "Customer found successfully.",
+    notFound: "Customer not found.",
+    mobileAlreadyExists: "Mobile number already in use by another user",
+  },
+  service: {
+    createSuccess: "Service created successfully.",
+    updateSuccess: "Service updated successfully.",
+    deleteSuccess: "Service deleted successfully.",
+    foundSuccess: "Service found successfully.",
+    notFound: "Service not found.",
+  },
+  appointment: {
+    createSuccess: "Appointment booked successfully.",
+    updateSuccess: "Appointment updated successfully.",
+    deleteSuccess: "Appointment deleted successfully.",
+    foundSuccess: "Appointment found successfully.",
+    notFound: "Appointment not found.",
+  },
+  leave: {
+    createSuccess: "Leave created successfully.",
+    updateSuccess: "Leave updated successfully.",
+    deleteSuccess: "Leave deleted successfully.",
+    foundSuccess: "Leave found successfully.",
+    notFound: "Leave not found.",
+  },
+  salon: {
+    createSuccess: "Salon created successfully.",
+    updateSuccess: "Salon updated successfully.",
+    deleteSuccess: "Salon deleted successfully.",
+    foundSuccess: "Salon found successfully.",
+    notFound: "Salon not found.",
+  },
+  salonUser: {
+    createSuccess: "User created successfully.",
+    updateSuccess: "User updated successfully.",
+    deleteSuccess: "User deleted successfully.",
+    foundSuccess: "User found successfully.",
+    notFound: "User not found.",
+  },
+  common: {
+    error: "Something went wrong.",
+  },
+};

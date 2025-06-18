@@ -1,0 +1,136 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum LeaveType {
+  DAY
+  HOURS
+}
+
+model Salon {
+  id           String      @id @default(uuid())
+  name         String
+  description  String?
+  phone        String
+  email        String?
+  address      String
+  openTime     String      // e.g., "09:00 AM"
+  closeTime    String      // e.g., "06:00 PM"
+  image        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  users        SalonUser[]
+  services     Service[]
+  appointments Appointment[]
+  leaves       Leave[]
+}
+
+model SalonUser {
+  id         String   @id @default(uuid())
+  salonId    String?
+  salon      Salon?    @relation(fields: [salonId], references: [id])
+
+  name       String
+  email      String   @unique
+  phone      String   @unique
+  password   String
+  role       UserRole @default(OWNER)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // ✅ Add opposite relation fields
+  services    Service[]
+  leaves      Leave[]
+  appointments Appointment[]
+}
+
+model Service {
+  id           Int           @id @default(autoincrement())
+  userId       String
+  user         SalonUser  @relation(fields: [userId], references: [id])
+
+  name         String
+  price        Float
+  duration     Int
+  image        String?
+
+  appointments Appointment[] @relation("ServiceOnAppointments")
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Leave {
+  id         Int        @id @default(autoincrement())
+  userId     String
+  user       SalonUser  @relation(fields: [userId], references: [id])
+
+  date       DateTime
+  type       LeaveType
+
+  reason     String?
+  timeStart  String?    // e.g., "09:00 AM"
+  timeEnd    String?    // e.g., "01:00 PM"
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Appointment {
+  id         Int               @id @default(autoincrement())
+  date       DateTime
+  status     AppointmentStatus @default(PENDING)
+
+  services   Service[]         @relation("ServiceOnAppointments")
+
+  customerId Int
+  customer   Customer          @relation(fields: [customerId], references: [id])
+
+  userId     String
+  user       SalonUser         @relation(fields: [userId], references: [id])
+
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+}
+
+model Customer {
+  id            Int            @id @default(autoincrement())
+  firstName     String
+  lastName      String
+  mobileNumber  String         @unique 
+
+  appointments  Appointment[]  // One-to-many relation
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+
+
