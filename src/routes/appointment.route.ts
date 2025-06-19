@@ -32,4 +32,6 @@ router.get("/get/:id", appointmentController.GetById);
 
 router.get("/get-all", appointmentController.GetAll);
 
+router.get("/slot", appointmentController.GetSlots);
+
 export default router;

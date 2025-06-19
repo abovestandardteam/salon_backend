@@ -8,6 +8,7 @@ import {
   getAppointmentById,
   updateAppointment,
   updateAppointmentStatus,
+  GetSlot,
 } from "@services/appointment.service";
 
 /**
@@ -115,6 +116,16 @@ export const GetAll = async (req: Request, res: Response) => {
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error retrieving appointments:", error);
+    res.send(errorResponse(StatusCodes.INTERNAL_SERVER_ERROR, error));
+  }
+};
+
+export const GetSlots = async (req: Request, res: Response) => {
+  try {
+    const result = await GetSlot();
+    res.status(result.statusCode).json(result);
+  } catch (error) {
+    console.error("Error getting appointment:", error);
     res.send(errorResponse(StatusCodes.INTERNAL_SERVER_ERROR, error));
   }
 };

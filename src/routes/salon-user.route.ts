@@ -19,6 +19,8 @@ router.put(
   salonUserController.Update
 );
 
+router.post("/login", salonUserController.Login);
+
 router.delete("/delete/:id", salonUserController.Delete);
 
 router.get("/get/:id", salonUserController.GetById);

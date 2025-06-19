@@ -5,21 +5,22 @@ const LeaveTypes = z.nativeEnum(LeaveType);
 
 export const createLeaveSchema = z
   .object({
-    salonId: z.string().uuid("Invalid salon ID"),
-    date: z.coerce.date({ required_error: "Leave date is required" }),
+    date: z
+      .string({ required_error: "Leave date is required" })
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
     type: LeaveTypes,
     reason: z.string().optional(),
-    timeStart: z.string().optional(),
-    timeEnd: z.string().optional(),
+    startTime: z.string().optional(),
+    endTime: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === LeaveType.HOURS) {
-      if (!data.timeStart || !data.timeEnd) {
+      if (!data.startTime || !data.endTime) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            "timeStart and timeEnd are required when leave type is HOURS",
-          path: ["timeStart"],
+            "startTime and endTime are required when leave type is HOURS",
+          path: ["startTime"],
         });
       }
     }
@@ -33,17 +34,17 @@ export const updateLeaveSchema = z
     date: z.coerce.date().optional(),
     type: LeaveTypes.optional(),
     reason: z.string().optional(),
-    timeStart: z.string().optional(),
-    timeEnd: z.string().optional(),
+    startTime: z.string().optional(),
+    endTime: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === LeaveType.HOURS) {
-      if (!data.timeStart || !data.timeEnd) {
+      if (!data.startTime || !data.endTime) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            "Both timeStart and timeEnd are required when leave type is HOURS",
-          path: ["timeStart"],
+            "Both startTime and endTime are required when leave type is HOURS",
+          path: ["startTime"],
         });
       }
     }

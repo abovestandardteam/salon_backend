@@ -17,6 +17,7 @@ export const createCustomer = async (body: CreateCustomerDTO) => {
     const tokenPayload = {
       id: existingCustomer.id,
       mobileNumber: existingCustomer.mobileNumber,
+      userType: "customer",
     };
 
     const token = await generateToken(tokenPayload);
@@ -37,8 +38,8 @@ export const createCustomer = async (body: CreateCustomerDTO) => {
 
   const tokenPayload = {
     id: newCustomer.id,
-
     mobileNumber: newCustomer.mobileNumber,
+    userType: "customer",
   };
 
   const token = await generateToken(tokenPayload);
@@ -89,15 +90,13 @@ export const deleteCustomer = async (id: number) => {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.customer.notFound);
   }
 
-  const deletedCustomer = await prisma.customer.delete({
-    where: { id },
-  });
+  const now = new Date();
+  // await prisma.customer.update({
+  //   where: { id },
+  //   data: { deletedAt: now },
+  // });
 
-  return successResponse(
-    StatusCodes.OK,
-    MESSAGES.customer.deleteSuccess,
-    deletedCustomer
-  );
+  return successResponse(StatusCodes.OK, MESSAGES.customer.deleteSuccess);
 };
 
 export const getCustomerById = async (id: number) => {

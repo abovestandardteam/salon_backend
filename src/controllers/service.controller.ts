@@ -18,7 +18,7 @@ import {
  */
 export const Create = async (req: Request, res: Response) => {
   try {
-    const result = await createService(req.body);
+    const result = await createService(req.body, req.user);
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error creating service:", error);

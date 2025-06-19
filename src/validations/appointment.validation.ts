@@ -4,11 +4,21 @@ import { z } from "zod";
 // Create Appointment Schema
 export const createAppointmentSchema = z.object({
   date: z.coerce.date({ invalid_type_error: "Invalid date format" }),
+  startTime: z.string().regex(/^([0-9]{1,2}):([0-9]{2}) (AM|PM)$/, {
+    message: "startTime must be in format HH:MM AM/PM",
+  }),
+  endTime: z.string().regex(/^([0-9]{1,2}):([0-9]{2}) (AM|PM)$/, {
+    message: "endTime must be in format HH:MM AM/PM",
+  }),
   customerId: z.number({ invalid_type_error: "Customer ID must be a number" }),
-  salonId: z.string().uuid({ message: "Salon ID must be a valid UUID" }),
+  userId: z.string().uuid({ message: "User ID must be a valid UUID" }), // SalonUser
   serviceIds: z
-    .array(z.number({ invalid_type_error: "Service ID must be a number" }))
-    .min(1, "At least one service is required"),
+    .array(z.number().int().positive())
+    .min(1, "At least one service is required")
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "Service IDs must be unique",
+    }),
+  notes: z.string().optional(),
 });
 
 export type CreateAppointmentDTO = z.infer<typeof createAppointmentSchema>;

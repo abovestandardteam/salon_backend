@@ -11,38 +11,44 @@ export const authMiddleware = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const matched = protectedRoutes.some(
+  const isProtected = protectedRoutes.some(
     (route) => route.path === req.path && route.method.includes(req.method)
   );
 
-  if (!matched) return next(); // ✅ Not a protected route → skip auth
+  if (!isProtected) return next(); // Not a protected route
 
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) {
     res
       .status(StatusCodes.UNAUTHORIZED)
       .json(
-        errorResponse(StatusCodes.UNAUTHORIZED, MESSAGES.customer.notFound)
+        errorResponse(StatusCodes.UNAUTHORIZED, MESSAGES.common.pleaseLogin)
       );
     return;
   }
 
   try {
-    const { id } = await verifyToken(token);
+    const { id, userType } = await verifyToken(token);
 
-    const customer = await prisma.customer.findUnique({
-      where: { id },
-    });
+    let user = null;
 
-    if (!customer) {
-      res.send(
-        errorResponse(StatusCodes.NOT_FOUND, MESSAGES.customer.notFound)
-      );
+    if (userType === "customer") {
+      user = await prisma.customer.findUnique({ where: { id } });
+    } else if (userType === "salonUser") {
+      user = await prisma.salonUser.findUnique({ where: { id } });
     }
 
-    req.user = customer;
-    next();
+    if (!user) {
+      res
+        .status(StatusCodes.NOT_FOUND)
+        .json(errorResponse(StatusCodes.NOT_FOUND, MESSAGES.customer.notFound));
+    }
+
+    req.user = { ...user, userType };
+    return next();
   } catch (err) {
-    res.status(401).json({ message: "Unauthorized: Invalid token" });
+    res
+      .status(StatusCodes.UNAUTHORIZED)
+      .json({ message: "Unauthorized: Invalid token" });
   }
 };

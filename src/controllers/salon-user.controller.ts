@@ -6,6 +6,7 @@ import {
   deleteSalonUser,
   getAllSalonUser,
   getSalonUserById,
+  loginSalonUser,
   updateSalonUser,
 } from "@services/salon-user.service";
 
@@ -22,6 +23,16 @@ export const Create = async (req: Request, res: Response) => {
 export const Update = async (req: Request, res: Response) => {
   try {
     const result = await updateSalonUser(req.params.id, req.body);
+    res.status(result.statusCode).json(result);
+  } catch (error) {
+    console.error("Error creating leave:", error);
+    res.send(errorResponse(StatusCodes.INTERNAL_SERVER_ERROR, error));
+  }
+};
+
+export const Login = async (req: Request, res: Response) => {
+  try {
+    const result = await loginSalonUser(req.body);
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error creating leave:", error);

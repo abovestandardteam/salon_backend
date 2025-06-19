@@ -41,8 +41,10 @@ export const MESSAGES = {
     deleteSuccess: "User deleted successfully.",
     foundSuccess: "User found successfully.",
     notFound: "User not found.",
+    invalidCredntials: "Invalid credentials",
   },
   common: {
     error: "Something went wrong.",
+    pleaseLogin: "Please login to continue.",
   },
 };

@@ -13,6 +13,7 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.19",
+    "@types/date-fns": "^2.5.3",
     "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.3",
     "@types/express-fileupload": "^1.5.1",
@@ -30,6 +31,8 @@
     "@prisma/client": "^6.9.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "express-fileupload": "^1.5.1",

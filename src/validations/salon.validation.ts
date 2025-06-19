@@ -13,16 +13,18 @@ export const createSalonSchema = z.object({
   openTime: z
     .string()
     .regex(
-      /^([0-9]{2}):([0-9]{2}) (am|pm)$/,
-      "Invalid open time format (e.g., 09:00 am)"
+      /^([0-9]{1,2}):([0-9]{2}) (AM|PM)$/i,
+      "Invalid open time format (e.g., 09:00 AM)"
     ),
   closeTime: z
     .string()
     .regex(
-      /^([0-9]{2}):([0-9]{2}) (am|pm)$/,
-      "Invalid close time format (e.g., 06:00 pm)"
+      /^([0-9]{1,2}):([0-9]{2}) (AM|PM)$/i,
+      "Invalid close time format (e.g., 06:00 PM)"
     ),
   image: z.string().url("Invalid image URL").optional(),
+  // 👇 Add userId field
+  userId: z.string().uuid({ message: "User ID must be a valid UUID" }),
 });
 
 export type CreateSalonDTO = z.infer<typeof createSalonSchema>;

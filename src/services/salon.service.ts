@@ -1,15 +1,47 @@
 import { PrismaClient } from "@prisma/client";
+import { parse, format } from "date-fns";
+import { MESSAGES } from "@utils/messages";
+import { StatusCodes } from "http-status-codes";
 import { CreateSalonDTO } from "../validations/salon.validation";
 import { errorResponse, successResponse } from "@utils/response";
-import { StatusCodes } from "http-status-codes";
-import { MESSAGES } from "@utils/messages";
 const prisma = new PrismaClient();
 
 export const createSalon = async (body: CreateSalonDTO) => {
+  const {
+    userId,
+    openTime: openTimeStr,
+    closeTime: closeTimeStr,
+    ...rest
+  } = body;
+
+  // Parse time strings into Date objects (use today's date as base)
+  const today = new Date();
+  const todayString = today.toISOString().split("T")[0]; // e.g., "2025-06-19"
+
+  const openTime = parse(
+    `${todayString} ${openTimeStr}`,
+    "yyyy-MM-dd hh:mm a",
+    new Date()
+  );
+  const closeTime = parse(
+    `${todayString} ${closeTimeStr}`,
+    "yyyy-MM-dd hh:mm a",
+    new Date()
+  );
+
+  // Create salon
   const newSalon = await prisma.salon.create({
     data: {
-      ...body,
+      ...rest,
+      openTime,
+      closeTime,
     },
+  });
+
+  // Update SalonUser to attach the salonId to the owner
+  await prisma.salonUser.update({
+    where: { id: userId },
+    data: { salonId: newSalon.id },
   });
 
   return successResponse(
@@ -67,7 +99,21 @@ export const getSalonById = async (id: string) => {
 export const getAllSalon = async (query: any) => {
   const salons = await prisma.salon.findMany({
     orderBy: { createdAt: "desc" },
+    include: {
+      users: true,
+    },
   });
 
-  return successResponse(StatusCodes.OK, MESSAGES.salon.foundSuccess, salons);
+  // Format openTime and closeTime for display
+  const formattedSalons = salons.map((salon) => ({
+    ...salon,
+    openTime: salon.openTime ? format(salon.openTime, "hh:mm a") : null,
+    closeTime: salon.closeTime ? format(salon.closeTime, "hh:mm a") : null,
+  }));
+
+  return successResponse(
+    StatusCodes.OK,
+    MESSAGES.salon.foundSuccess,
+    formattedSalons
+  );
 };

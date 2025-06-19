@@ -2,7 +2,6 @@ import { z } from "zod";
 
 // ✅ Create Service Schema
 export const createServiceSchema = z.object({
-  salonId: z.string().uuid({ message: "Salon ID must be a valid UUID" }),
   name: z.string().min(1, "Name is required"),
   price: z.coerce.number({ invalid_type_error: "Price must be a number" }),
   duration: z.coerce.number({

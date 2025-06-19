@@ -1,14 +1,18 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, SalonUser } from "@prisma/client";
 import { CreateServiceDTO } from "../validations/service.validation";
 import { errorResponse, successResponse } from "@utils/response";
 import { StatusCodes } from "http-status-codes";
 import { MESSAGES } from "@utils/messages";
 const prisma = new PrismaClient();
 
-export const createService = async (body: CreateServiceDTO) => {
+export const createService = async (
+  body: CreateServiceDTO,
+  user: SalonUser
+) => {
   const newService = await prisma.service.create({
     data: {
       ...body,
+      userId: user.id,
     },
   });
 
@@ -40,15 +44,13 @@ export const deleteService = async (id: number) => {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.service.notFound);
   }
 
-  const deletedService = await prisma.service.delete({
-    where: { id },
-  });
+  const now = new Date();
+  // await prisma.service.update({
+  //   where: { id },
+  //   data: { deletedAt: now },
+  // });
 
-  return successResponse(
-    StatusCodes.OK,
-    MESSAGES.service.deleteSuccess,
-    deletedService
-  );
+  return successResponse(StatusCodes.OK, MESSAGES.service.deleteSuccess);
 };
 
 export const getServiceById = async (id: number) => {
