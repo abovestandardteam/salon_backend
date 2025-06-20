@@ -25,7 +25,7 @@ export const createCustomer = async (body: CreateCustomerDTO) => {
     const token = await generateToken(tokenPayload);
 
     // Step 3: Return existing customer with token
-    return successResponse(StatusCodes.OK, MESSAGES.customer.foundSuccess, {
+    return successResponse(StatusCodes.OK, MESSAGES.customer.createSuccess, {
       ...existingCustomer,
       token,
     });

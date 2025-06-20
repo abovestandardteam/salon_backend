@@ -12,7 +12,12 @@ import {
 import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { AppointmentStatus, LeaveType, TimeZone } from "@utils/enum";
-import { formatSlot, formatTime, generateTimeSlots } from "@utils/helper";
+import {
+  formatDateWithSuffix,
+  formatSlot,
+  formatTime,
+  generateTimeSlots,
+} from "@utils/helper";
 import { errorResponse, successResponse } from "@utils/response";
 import { CreateAppointmentDTO } from "@validations/appointment.validation";
 const prisma = new PrismaClient();
@@ -158,32 +163,45 @@ export const getAppointmentById = async (id: number) => {
   );
 };
 
-export const getAllAppointment = async (authUser: any, query: any) => {
-  // 1) Base filter: if a plain USER, only their own appointments
-  const baseFilter =
-    authUser.role === "USER" ? { customerId: authUser.id } : {};
+export const getAllAppointment = async (user: any, query: any) => {
+  // 1) Determine if user is a customer
+  const isCustomer = user.userType === "customer";
 
-  // 2) Status filter: only apply if query.status is provided
+  // 2) Base filter — restrict by customerId if user is a customer
+  const baseFilter = isCustomer ? { customerId: user.id } : {};
+
+  // 3) Optional status filter (e.g., COMPLETED, PENDING)
   const statusFilter = query.status ? { status: query.status } : {};
 
-  // 3) Merge filters
+  // 4) Merge filters
   const whereCondition = {
     ...baseFilter,
     ...statusFilter,
   };
 
-  // 4) Fetch
+  // 5) Fetch appointments
   const appointments = await prisma.appointment.findMany({
     where: whereCondition,
     orderBy: { createdAt: "desc" },
-    include: {
-      services: true,
-      customer: true,
+    select: {
+      id: true,
+      date: true,
+      startTime: true,
+      endTime: true,
+      status: true,
+      services: {
+        select: { name: true, duration: true, price: true },
+      },
+      customer: {
+        select: { firstName: true, lastName: true, mobileNumber: true },
+      },
     },
   });
 
+  // 6) Format for output
   const formattedAppointments = appointments.map((a) => ({
     ...a,
+    date: formatDateWithSuffix(a.date),
     startTime: formatTime(a.startTime),
     endTime: formatTime(a.endTime),
   }));
