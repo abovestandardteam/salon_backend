@@ -120,9 +120,17 @@ export const GetAll = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * @createdBy - @createdAt - Disha Radadiya - 18/06/2025
+ * @description Retrieve available appointment slots based on query parameters
+ * @param {Request} req - The request object containing query parameters for slot retrieval
+ * @param {Response} res - The response object to send the result or error message
+ * @returns {Promise<Response>} - The response object with the available slots data or error message
+ */
+
 export const GetSlots = async (req: Request, res: Response) => {
   try {
-    const result = await GetSlot();
+    const result = await GetSlot(req.query);
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error getting appointment:", error);

@@ -213,9 +213,11 @@ export const getAllAppointment = async (user: any, query: any) => {
   );
 };
 
-export const GetSlot = async () => {
+export const GetSlot = async (query: any) => {
+  const inputDate = query.date ? new Date(query.date) : new Date();
+  const today = isNaN(inputDate.getTime()) ? new Date() : inputDate;
+
   // 📅 Get today's date, day name, and time range
-  const today = new Date();
   const currentDate = format(today, "yyyy-MM-dd");
   const currentDay = format(today, "EEEE");
 
