@@ -50,14 +50,31 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
         parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
         TimeZone.IST
       )
-    : null;
+    : undefined;
 
   const parsedEndTime = endTime
     ? fromZonedTime(
         parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
         TimeZone.IST
       )
-    : null;
+    : undefined;
+
+  // ✅ Check for overlapping appointments
+  const overlappingAppointment = await prisma.appointment.findFirst({
+    where: {
+      status: AppointmentStatus.PENDING,
+      date: dateObject,
+      startTime: { lt: parsedEndTime },
+      endTime: { gt: parsedStartTime },
+    },
+  });
+
+  if (overlappingAppointment) {
+    return errorResponse(
+      StatusCodes.CONFLICT,
+      `Time slot already booked from ${startTime} to ${endTime}`
+    );
+  }
 
   const newAppointment = await prisma.appointment.create({
     data: {
@@ -85,9 +102,92 @@ export const updateAppointment = async (
   id: number,
   data: Partial<CreateAppointmentDTO>
 ) => {
+  const existing = await prisma.appointment.findUnique({
+    where: { id: id },
+  });
+  if (!existing) {
+    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.appointment.notFound);
+  }
+
+  const { serviceIds, date: dateObject, startTime, endTime, ...rest } = data;
+
+  // 🧪 Validate serviceIds if provided
+  if (serviceIds && serviceIds.length > 0) {
+    const foundServices = await prisma.service.findMany({
+      where: { id: { in: serviceIds } },
+      select: { id: true },
+    });
+
+    const foundServiceIds = new Set(foundServices.map((s) => s.id));
+    const invalidIds = serviceIds.filter((id) => !foundServiceIds.has(id));
+
+    if (invalidIds.length > 0) {
+      return errorResponse(
+        StatusCodes.BAD_REQUEST,
+        `Service not found: ${invalidIds.join(", ")}`
+      );
+    }
+  }
+
+  // 🕒 Parse date/time if provided
+  const dateString = dateObject
+    ? dateObject.toISOString().split("T")[0]
+    : undefined;
+
+  let parsedStartTime = undefined;
+  let parsedEndTime = undefined;
+
+  if (dateString && startTime) {
+    parsedStartTime = fromZonedTime(
+      parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
+      TimeZone.IST
+    );
+  }
+
+  if (dateString && endTime) {
+    parsedEndTime = fromZonedTime(
+      parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
+      TimeZone.IST
+    );
+  }
+
+  // ❌ Check for overlapping appointments if time is being updated
+  if (parsedStartTime && parsedEndTime && dateObject) {
+    const overlap = await prisma.appointment.findFirst({
+      where: {
+        id: { not: id },
+        status: AppointmentStatus.PENDING,
+        date: dateObject,
+        startTime: { lt: parsedEndTime },
+        endTime: { gt: parsedStartTime },
+      },
+    });
+
+    if (overlap) {
+      return errorResponse(
+        StatusCodes.CONFLICT,
+        `Time slot already booked from ${startTime} to ${endTime}`
+      );
+    }
+  }
+
+  // 🛠️ Construct update object
+  const updateData: any = {
+    ...rest,
+    ...(dateObject && { date: dateObject }),
+    ...(parsedStartTime && { startTime: parsedStartTime }),
+    ...(parsedEndTime && { endTime: parsedEndTime }),
+    ...(serviceIds && {
+      services: {
+        set: serviceIds.map((id) => ({ id })),
+      },
+    }),
+  };
+
   const appointment = await prisma.appointment.update({
     where: { id },
-    data,
+    data: updateData,
+    include: { services: true },
   });
   return successResponse(
     StatusCodes.OK,

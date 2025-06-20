@@ -52,7 +52,7 @@ export const updateService = async (
         name: data.name,
         userId: user.id,
         NOT: {
-          id: id, // exclude the current service
+          id: id,
         },
       },
     });
