@@ -4,14 +4,13 @@ import { z } from "zod";
 // Create Appointment Schema
 export const createAppointmentSchema = z.object({
   date: z.coerce.date({ invalid_type_error: "Invalid date format" }),
-  startTime: z.string().regex(/^([0-9]{1,2}):([0-9]{2}) (AM|PM)$/, {
-    message: "startTime must be in format HH:MM AM/PM",
-  }),
-  endTime: z.string().regex(/^([0-9]{1,2}):([0-9]{2}) (AM|PM)$/, {
-    message: "endTime must be in format HH:MM AM/PM",
-  }),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
   customerId: z.number({ invalid_type_error: "Customer ID must be a number" }),
-  userId: z.string().uuid({ message: "User ID must be a valid UUID" }), // SalonUser
+  userId: z
+    .string()
+    .uuid({ message: "User ID must be a valid UUID" })
+    .optional(),
   serviceIds: z
     .array(z.number().int().positive())
     .min(1, "At least one service is required")

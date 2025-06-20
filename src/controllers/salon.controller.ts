@@ -11,7 +11,7 @@ import {
 
 export const Create = async (req: Request, res: Response) => {
   try {
-    const result = await createSalon(req.body);
+    const result = await createSalon(req.body, req.user);
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error creating salon:", error);

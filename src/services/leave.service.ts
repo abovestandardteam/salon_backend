@@ -1,18 +1,16 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, SalonUser } from "@prisma/client";
+import { TimeZone } from "@utils/enum";
+import { parse, format } from "date-fns";
 import { MESSAGES } from "@utils/messages";
-import { parse, parseISO } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { CreateLeaveDTO } from "@validations/leave.validation";
 import { errorResponse, successResponse } from "@utils/response";
+import { formatTime } from "@utils/helper";
 const prisma = new PrismaClient();
-import { format } from "date-fns";
-import { fromZonedTime } from "date-fns-tz"; // ✅ correct
 
-export const createLeave = async (body: CreateLeaveDTO, user: any) => {
+export const createLeave = async (body: CreateLeaveDTO, user: SalonUser) => {
   const { date: dateString, startTime, endTime, ...rest } = body;
-
-  // Fallback to UTC if user's timezone is not defined
-  const userTimeZone = user.timeZone || "UTC";
 
   // Parse only the date portion
   const parsedDate = parse(dateString, "yyyy-MM-dd", new Date());
@@ -21,14 +19,14 @@ export const createLeave = async (body: CreateLeaveDTO, user: any) => {
   const parsedStartTime = startTime
     ? fromZonedTime(
         parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
-        userTimeZone
+        TimeZone.IST
       )
     : null;
 
   const parsedEndTime = endTime
     ? fromZonedTime(
         parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
-        userTimeZone
+        TimeZone.IST
       )
     : null;
 
@@ -53,17 +51,55 @@ export const updateLeave = async (
   id: number,
   data: Partial<CreateLeaveDTO>
 ) => {
-  let leave = await prisma.leave.findUnique({ where: { id } });
-  if (!leave) {
+  const existingLeave = await prisma.leave.findUnique({ where: { id } });
+
+  if (!existingLeave) {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.leave.notFound);
   }
 
-  leave = await prisma.leave.update({
+  const updates: any = { ...data };
+
+  // 🗓️ Ensure parsedDate is available for time parsing
+  const dateInput = data.date ?? existingLeave.date;
+  const parsedDate =
+    typeof dateInput === "string"
+      ? parse(dateInput, "yyyy-MM-dd", new Date())
+      : dateInput;
+
+  if (data.date) {
+    updates.date = parsedDate;
+  }
+
+  // ⏰ Convert startTime to UTC
+  if (data.startTime) {
+    const combinedStart = parse(
+      `${format(parsedDate, "yyyy-MM-dd")} ${data.startTime}`,
+      "yyyy-MM-dd hh:mm a",
+      new Date()
+    );
+    updates.startTime = fromZonedTime(combinedStart, TimeZone.IST);
+  }
+
+  // ⏰ Convert endTime to UTC
+  if (data.endTime) {
+    const combinedEnd = parse(
+      `${format(parsedDate, "yyyy-MM-dd")} ${data.endTime}`,
+      "yyyy-MM-dd hh:mm a",
+      new Date()
+    );
+    updates.endTime = fromZonedTime(combinedEnd, TimeZone.IST);
+  }
+
+  const updatedLeave = await prisma.leave.update({
     where: { id },
-    data,
+    data: updates,
   });
 
-  return successResponse(StatusCodes.OK, MESSAGES.leave.updateSuccess, leave);
+  return successResponse(
+    StatusCodes.OK,
+    MESSAGES.leave.updateSuccess,
+    updatedLeave
+  );
 };
 
 export const deleteLeave = async (id: number) => {
@@ -91,7 +127,18 @@ export const getLeaveById = async (id: number) => {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.leave.notFound);
   }
 
-  return successResponse(StatusCodes.OK, MESSAGES.leave.foundSuccess, leave);
+  const formattedLeave = {
+    ...leave,
+    startTime: formatTime(leave.startTime),
+    endTime: formatTime(leave.endTime),
+    date: format(leave.date, "yyyy-MM-dd"),
+  };
+
+  return successResponse(
+    StatusCodes.OK,
+    MESSAGES.leave.foundSuccess,
+    formattedLeave
+  );
 };
 
 export const getAllLeave = async (query: any) => {
@@ -101,12 +148,8 @@ export const getAllLeave = async (query: any) => {
 
   const formattedLeaves = leaves.map((leave) => ({
     ...leave,
-    startTime: leave.startTime
-      ? format(leave.startTime, "hh:mm a").toLowerCase()
-      : null,
-    endTime: leave.endTime
-      ? format(leave.endTime, "hh:mm a").toLowerCase()
-      : null,
+    startTime: formatTime(leave.startTime),
+    endTime: formatTime(leave.endTime),
     date: format(leave.date, "yyyy-MM-dd"),
   }));
 

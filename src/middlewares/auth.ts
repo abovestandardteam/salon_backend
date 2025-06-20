@@ -1,19 +1,22 @@
-import { Request, Response, NextFunction } from "express";
-import { protectedRoutes } from "./protected.routes";
-import { verifyToken } from "@utils/jwt";
 import prisma from "config/prisma";
-import { errorResponse } from "@utils/response";
-import { StatusCodes } from "http-status-codes";
+import { match } from "path-to-regexp";
+import { verifyToken } from "@utils/jwt";
 import { MESSAGES } from "@utils/messages";
+import { StatusCodes } from "http-status-codes";
+import { errorResponse } from "@utils/response";
+import { protectedRoutes } from "./protected.routes";
+import { Request, Response, NextFunction } from "express";
 
 export const authMiddleware = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  const isProtected = protectedRoutes.some(
-    (route) => route.path === req.path && route.method.includes(req.method)
-  );
+  const isProtected = protectedRoutes.some((route) => {
+    const isMethodMatch = route.method.includes(req.method);
+    const matcher = match(route.path, { decode: decodeURIComponent });
+    return isMethodMatch && matcher(req.path);
+  });
 
   if (!isProtected) return next(); // Not a protected route
 
@@ -45,6 +48,7 @@ export const authMiddleware = async (
     }
 
     req.user = { ...user, userType };
+
     return next();
   } catch (err) {
     res

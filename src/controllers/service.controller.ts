@@ -35,7 +35,11 @@ export const Create = async (req: Request, res: Response) => {
  */
 export const Update = async (req: Request, res: Response) => {
   try {
-    const result = await updateService(Number(req.params.id), req.body);
+    const result = await updateService(
+      Number(req.params.id),
+      req.body,
+      req.user
+    );
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error creating service:", error);
@@ -52,7 +56,7 @@ export const Update = async (req: Request, res: Response) => {
  */
 export const Delete = async (req: Request, res: Response) => {
   try {
-    const result = await deleteService(Number(req.params.id));
+    const result = await deleteService(Number(req.params.id), req.user);
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error creating service:", error);

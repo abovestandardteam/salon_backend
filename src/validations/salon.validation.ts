@@ -23,8 +23,6 @@ export const createSalonSchema = z.object({
       "Invalid close time format (e.g., 06:00 PM)"
     ),
   image: z.string().url("Invalid image URL").optional(),
-  // 👇 Add userId field
-  userId: z.string().uuid({ message: "User ID must be a valid UUID" }),
 });
 
 export type CreateSalonDTO = z.infer<typeof createSalonSchema>;

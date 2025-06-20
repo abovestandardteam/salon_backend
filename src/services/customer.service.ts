@@ -4,6 +4,8 @@ import { errorResponse, successResponse } from "@utils/response";
 import { StatusCodes } from "http-status-codes";
 import { MESSAGES } from "@utils/messages";
 import { generateToken } from "@utils/jwt";
+import { AppointmentStatus } from "@utils/enum";
+import { formatDate, formatDateWithSuffix, formatTime } from "@utils/helper";
 const prisma = new PrismaClient();
 
 export const createCustomer = async (body: CreateCustomerDTO) => {
@@ -91,10 +93,10 @@ export const deleteCustomer = async (id: number) => {
   }
 
   const now = new Date();
-  // await prisma.customer.update({
-  //   where: { id },
-  //   data: { deletedAt: now },
-  // });
+  await prisma.customer.update({
+    where: { id },
+    data: { deletedAt: now },
+  });
 
   return successResponse(StatusCodes.OK, MESSAGES.customer.deleteSuccess);
 };
@@ -104,8 +106,15 @@ export const getCustomerById = async (id: number) => {
     where: { id },
     include: {
       appointments: {
-        include: {
-          services: true,
+        select: {
+          id: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          status: true,
+          services: {
+            select: { name: true, duration: true, price: true },
+          },
         },
       },
     },
@@ -114,10 +123,22 @@ export const getCustomerById = async (id: number) => {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.customer.notFound);
   }
 
+  const formattedAppointments = customer.appointments.map((appointment) => ({
+    ...appointment,
+    date: formatDateWithSuffix(appointment.date),
+    startTime: formatTime(appointment.startTime),
+    endTime: formatTime(appointment.endTime),
+  }));
+
+  const formattedCustomer = {
+    ...customer,
+    appointments: formattedAppointments,
+  };
+
   return successResponse(
     StatusCodes.OK,
     MESSAGES.customer.foundSuccess,
-    customer
+    formattedCustomer
   );
 };
 
@@ -137,23 +158,19 @@ export const getAllCustomer = async (query: any) => {
     where: whereFilter,
     orderBy: { createdAt: "desc" },
     include: {
-      _count: { select: { appointments: true } },
       appointments: {
-        where: { status: "COMPLETED" },
+        where: { status: AppointmentStatus.COMPLETED },
         orderBy: { updatedAt: "desc" },
-        take: 1,
         select: { updatedAt: true },
       },
     },
   });
 
-  const usersWithExtras = users.map(
-    ({ _count, appointments, ...customer }) => ({
-      ...customer,
-      totalAppointments: _count.appointments,
-      lastCompletedAt: appointments[0]?.updatedAt ?? null,
-    })
-  );
+  const usersWithExtras = users.map(({ appointments, ...customer }) => ({
+    ...customer,
+    totalAppointments: appointments.length, // only COMPLETED ones
+    lastVisit: formatDateWithSuffix(appointments[0]?.updatedAt) ?? null, // latest COMPLETED visit
+  }));
 
   return successResponse(
     StatusCodes.OK,

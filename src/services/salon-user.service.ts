@@ -1,5 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { CreateSalonUserDTO } from "../validations/salon-user.validation";
+import {
+  CreateSalonUserDTO,
+  LoginSalonUserDTO,
+} from "../validations/salon-user.validation";
 import { errorResponse, successResponse } from "@utils/response";
 import { StatusCodes } from "http-status-codes";
 import { MESSAGES } from "@utils/messages";
@@ -48,44 +51,34 @@ export const updateSalonUser = async (
   );
 };
 
-export const loginSalonUser = async ({
-  email,
-  password,
-}: {
-  email: string;
-  password: string;
-}) => {
+export const loginSalonUser = async (body: LoginSalonUserDTO) => {
   const salonUser = await prisma.salonUser.findUnique({
-    where: { email },
+    where: { email: body.email },
   });
 
   if (!salonUser) {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salonUser.notFound);
   }
 
-  const isPasswordValid = await comparePassword(password, salonUser.password);
+  const isPasswordValid = await comparePassword(
+    body.password,
+    salonUser.password
+  );
   if (!isPasswordValid) {
     return errorResponse(
       StatusCodes.UNAUTHORIZED,
       MESSAGES.salonUser.invalidCredntials
     );
   }
-
+  const { password, ...safeUser } = salonUser;
   const token = generateToken({
     id: salonUser.id,
     role: salonUser.role,
     userType: "salonUser",
   });
 
-  return successResponse(StatusCodes.OK, "Login successful", {
-    user: {
-      id: salonUser.id,
-      name: salonUser.name,
-      email: salonUser.email,
-      phone: salonUser.phone,
-      role: salonUser.role,
-      salonId: salonUser.salonId,
-    },
+  return successResponse(StatusCodes.OK, MESSAGES.salonUser.loginSuccess, {
+    ...safeUser,
     token,
   });
 };
@@ -97,10 +90,10 @@ export const deleteSalonUser = async (id: string) => {
   }
 
   const now = new Date();
-  // await prisma.salonUser.update({
-  //   where: { id },
-  //   data: { deletedAt: now },
-  // });
+  await prisma.salonUser.update({
+    where: { id },
+    data: { deletedAt: now },
+  });
 
   return successResponse(StatusCodes.OK, MESSAGES.salonUser.deleteSuccess);
 };
@@ -108,6 +101,9 @@ export const deleteSalonUser = async (id: string) => {
 export const getSalonUserById = async (id: string) => {
   const salonUser = await prisma.salonUser.findUnique({
     where: { id },
+    include: {
+      salon: true,
+    },
   });
   if (!salonUser) {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salonUser.notFound);

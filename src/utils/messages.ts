@@ -13,6 +13,8 @@ export const MESSAGES = {
     deleteSuccess: "Service deleted successfully.",
     foundSuccess: "Service found successfully.",
     notFound: "Service not found.",
+    isInUse:
+      "Cannot delete service because it is associated with a pending appointment.",
   },
   appointment: {
     createSuccess: "Appointment booked successfully.",
@@ -33,6 +35,7 @@ export const MESSAGES = {
     updateSuccess: "Salon updated successfully.",
     deleteSuccess: "Salon deleted successfully.",
     foundSuccess: "Salon found successfully.",
+    close: "Salon is closed today.",
     notFound: "Salon not found.",
   },
   salonUser: {
@@ -42,6 +45,7 @@ export const MESSAGES = {
     foundSuccess: "User found successfully.",
     notFound: "User not found.",
     invalidCredntials: "Invalid credentials",
+    loginSuccess: "Login successful.",
   },
   common: {
     error: "Something went wrong.",

@@ -15,3 +15,7 @@ export enum LeaveType {
   DAY = "DAY",
   HOURS = "HOURS",
 }
+
+export enum TimeZone {
+  IST = "Asia/Kolkata",
+}

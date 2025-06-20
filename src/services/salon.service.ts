@@ -1,32 +1,29 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, SalonUser } from "@prisma/client";
+import { TimeZone } from "@utils/enum";
 import { parse, format } from "date-fns";
 import { MESSAGES } from "@utils/messages";
+import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { CreateSalonDTO } from "../validations/salon.validation";
 import { errorResponse, successResponse } from "@utils/response";
+import { formatTime } from "@utils/helper";
 const prisma = new PrismaClient();
 
-export const createSalon = async (body: CreateSalonDTO) => {
-  const {
-    userId,
-    openTime: openTimeStr,
-    closeTime: closeTimeStr,
-    ...rest
-  } = body;
+export const createSalon = async (body: CreateSalonDTO, user: SalonUser) => {
+  const { openTime: openTimeStr, closeTime: closeTimeStr, ...rest } = body;
 
   // Parse time strings into Date objects (use today's date as base)
   const today = new Date();
   const todayString = today.toISOString().split("T")[0]; // e.g., "2025-06-19"
 
-  const openTime = parse(
-    `${todayString} ${openTimeStr}`,
-    "yyyy-MM-dd hh:mm a",
-    new Date()
+  const openTime = fromZonedTime(
+    parse(`${todayString} ${openTimeStr}`, "yyyy-MM-dd hh:mm a", new Date()),
+    TimeZone.IST
   );
-  const closeTime = parse(
-    `${todayString} ${closeTimeStr}`,
-    "yyyy-MM-dd hh:mm a",
-    new Date()
+
+  const closeTime = fromZonedTime(
+    parse(`${todayString} ${closeTimeStr}`, "yyyy-MM-dd hh:mm a", new Date()),
+    TimeZone.IST
   );
 
   // Create salon
@@ -40,7 +37,7 @@ export const createSalon = async (body: CreateSalonDTO) => {
 
   // Update SalonUser to attach the salonId to the owner
   await prisma.salonUser.update({
-    where: { id: userId },
+    where: { id: user.id },
     data: { salonId: newSalon.id },
   });
 
@@ -93,7 +90,17 @@ export const getSalonById = async (id: string) => {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salon.notFound);
   }
 
-  return successResponse(StatusCodes.OK, MESSAGES.salon.foundSuccess, salon);
+  const formattedSalon = {
+    ...salon,
+    openTime: formatTime(salon.openTime),
+    closeTime: formatTime(salon.closeTime),
+  };
+
+  return successResponse(
+    StatusCodes.OK,
+    MESSAGES.salon.foundSuccess,
+    formattedSalon
+  );
 };
 
 export const getAllSalon = async (query: any) => {
@@ -107,8 +114,8 @@ export const getAllSalon = async (query: any) => {
   // Format openTime and closeTime for display
   const formattedSalons = salons.map((salon) => ({
     ...salon,
-    openTime: salon.openTime ? format(salon.openTime, "hh:mm a") : null,
-    closeTime: salon.closeTime ? format(salon.closeTime, "hh:mm a") : null,
+    openTime: formatTime(salon.openTime),
+    closeTime: formatTime(salon.closeTime),
   }));
 
   return successResponse(

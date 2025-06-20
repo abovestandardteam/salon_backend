@@ -39,3 +39,10 @@ export const updateSalonUserSchema = z.object({
 });
 
 export type UpdateSalonUserDTO = z.infer<typeof updateSalonUserSchema>;
+
+export const loginSalonUserSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export type LoginSalonUserDTO = z.infer<typeof loginSalonUserSchema>;

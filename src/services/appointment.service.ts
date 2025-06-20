@@ -9,9 +9,10 @@ import {
   parse,
   startOfDay,
 } from "date-fns";
-import { AppointmentStatus, LeaveType } from "@utils/enum";
+import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
-import { formatSlot, generateTimeSlots } from "@utils/helper";
+import { AppointmentStatus, LeaveType, TimeZone } from "@utils/enum";
+import { formatSlot, formatTime, generateTimeSlots } from "@utils/helper";
 import { errorResponse, successResponse } from "@utils/response";
 import { CreateAppointmentDTO } from "@validations/appointment.validation";
 const prisma = new PrismaClient();
@@ -19,21 +20,39 @@ const prisma = new PrismaClient();
 export const createAppointment = async (body: CreateAppointmentDTO) => {
   const { serviceIds, date: dateObject, startTime, endTime, ...rest } = body;
 
+  // ✅ Validate that all provided service IDs exist
+  const foundServices = await prisma.service.findMany({
+    where: { id: { in: serviceIds } },
+    select: { id: true },
+  });
+
+  const foundServiceIds = new Set(foundServices.map((s) => s.id));
+  const invalidIds = serviceIds.filter((id) => !foundServiceIds.has(id));
+
+  if (invalidIds.length > 0) {
+    return errorResponse(
+      StatusCodes.BAD_REQUEST,
+      `Service not found: ${invalidIds.join(", ")}`
+    );
+  }
+
   // Convert date to YYYY-MM-DD string
   const dateString = dateObject.toISOString().split("T")[0];
 
-  // Parse times using the provided date as base (local time assumed)
-  const parsedStartTime = parse(
-    `${dateString} ${startTime}`,
-    "yyyy-MM-dd hh:mm a",
-    new Date()
-  );
+  // Combine date + time and convert from user's timezone to UTC
+  const parsedStartTime = startTime
+    ? fromZonedTime(
+        parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
+        TimeZone.IST
+      )
+    : null;
 
-  const parsedEndTime = parse(
-    `${dateString} ${endTime}`,
-    "yyyy-MM-dd hh:mm a",
-    new Date()
-  );
+  const parsedEndTime = endTime
+    ? fromZonedTime(
+        parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
+        TimeZone.IST
+      )
+    : null;
 
   const newAppointment = await prisma.appointment.create({
     data: {
@@ -127,10 +146,15 @@ export const getAppointmentById = async (id: number) => {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.appointment.notFound);
   }
 
+  const formattedSlot = {
+    ...appointment,
+    startTime: formatTime(appointment.startTime),
+    endTime: formatTime(appointment.endTime),
+  };
   return successResponse(
     StatusCodes.OK,
     MESSAGES.appointment.foundSuccess,
-    appointment
+    formattedSlot
   );
 };
 
@@ -158,19 +182,26 @@ export const getAllAppointment = async (authUser: any, query: any) => {
     },
   });
 
+  const formattedAppointments = appointments.map((a) => ({
+    ...a,
+    startTime: formatTime(a.startTime),
+    endTime: formatTime(a.endTime),
+  }));
+
   return successResponse(
     StatusCodes.OK,
     MESSAGES.appointment.foundSuccess,
-    appointments
+    formattedAppointments
   );
 };
 
 export const GetSlot = async () => {
-  // Get today's full date range
+  // 📅 Get today's date, day name, and time range
   const today = new Date();
-  const currentDate = format(new Date(), "yyyy-MM-dd");
-  const currentDay = format(new Date(), "EEEE");
+  const currentDate = format(today, "yyyy-MM-dd");
+  const currentDay = format(today, "EEEE");
 
+  // 🏠 Fetch salon info
   const salon = await prisma.salon.findFirst();
   if (!salon) {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salon.notFound);
@@ -181,6 +212,7 @@ export const GetSlot = async () => {
     throw new Error("Open or Close time is missing");
   }
 
+  // 💇‍♀️ Get all services and determine shortest duration
   const services = await prisma.service.findMany();
   if (services.length === 0) {
     return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.service.notFound);
@@ -188,10 +220,11 @@ export const GetSlot = async () => {
 
   const minDuration = Math.min(...services.map((s) => s.duration));
 
+  // ⏳ Define today's range in UTC (adjusted from IST)
   const start = startOfDay(today);
   const end = endOfDay(today);
-  console.log(start);
-  console.log(end);
+
+  // 📆 Check if there's a leave today
   const leaveToday = await prisma.leave.findFirst({
     where: {
       date: {
@@ -200,30 +233,23 @@ export const GetSlot = async () => {
       },
     },
   });
-  console.log(leaveToday);
-  // 💡 Return empty if it's a full-day leave
+
+  // 🚫 If it's a full-day leave, return no slots
   if (leaveToday?.type === LeaveType.DAY) {
-    return successResponse(
-      StatusCodes.OK,
-      "Salon is closed today due to leave",
-      {
-        date: currentDate,
-        day: currentDay,
-        slots: [],
-      }
-    );
+    return successResponse(StatusCodes.OK, MESSAGES.salon.close, {
+      date: currentDate,
+      day: currentDay,
+      slots: [],
+    });
   }
 
-  const todayStart = new Date(today.setHours(0, 0, 0, 0));
-  const todayEnd = new Date(today.setHours(23, 59, 59, 999));
-
-  // Get pending appointments
+  // 📋 Get today's pending appointments
   const appointments = await prisma.appointment.findMany({
     where: {
       status: AppointmentStatus.PENDING,
       startTime: {
-        gte: todayStart,
-        lte: todayEnd,
+        gte: start,
+        lte: end,
       },
     },
     select: {
@@ -232,10 +258,10 @@ export const GetSlot = async () => {
     },
   });
 
-  // Generate all slots
+  // 🕰️ Generate time slots between openTime and closeTime
   const allSlots = generateTimeSlots(openTime, closeTime, minDuration);
 
-  // Exclude slots booked by appointments
+  // ❌ Remove slots that overlap with existing appointments
   let availableSlots = allSlots.filter((slot) => {
     return !appointments.some((appt) => {
       if (!appt.startTime || !appt.endTime) return false;
@@ -246,32 +272,30 @@ export const GetSlot = async () => {
       );
     });
   });
-  console.log(leaveToday);
-  // 💡 If leave type is HOURS, remove affected slots
+
+  // ⛔ Remove slots affected by hour-based leave
   if (
     leaveToday?.type === LeaveType.HOURS &&
     leaveToday.startTime &&
     leaveToday.endTime
   ) {
-    console.log(leaveToday.startTime);
-    console.log(leaveToday.endTime);
-    // const leaveStart = parse(leaveToday.startTime, "hh:mm a", new Date());
-    // const leaveEnd = parse(leaveToday.endTime, "hh:mm a", new Date());
     const leaveStart = new Date(leaveToday.startTime);
     const leaveEnd = new Date(leaveToday.endTime);
 
     availableSlots = availableSlots.filter((slot) => {
-      return isBefore(slot.end, leaveStart) || isAfter(slot.start, leaveEnd);
+      return !(slot.start < leaveEnd && slot.end > leaveStart);
     });
   }
 
-  // Format slots
+  // ✅ Format remaining slots to { start: "hh:mm am/pm", end: "hh:mm am/pm" }
   const formattedSlots = availableSlots.map(formatSlot);
 
+  // 🎉 Return response
   return successResponse(
     StatusCodes.OK,
     "Available slots fetched successfully",
     {
+      totalSlots: formattedSlots.length,
       date: currentDate,
       day: currentDay,
       slots: formattedSlots,

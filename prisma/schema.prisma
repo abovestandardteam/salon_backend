@@ -81,6 +81,10 @@ model Service {
 
   appointments Appointment[] @relation("ServiceOnAppointments")
 
+  createdBy    String
+  updatedBy    String?
+  deletedBy    String?
+
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   deletedAt    DateTime?
@@ -109,14 +113,15 @@ model Appointment {
   startTime  DateTime?         @db.Timestamptz   
   endTime    DateTime?         @db.Timestamptz 
   status     AppointmentStatus @default(PENDING)
+  notes      String? 
 
   services   Service[]         @relation("ServiceOnAppointments")
 
   customerId Int
   customer   Customer          @relation(fields: [customerId], references: [id])
 
-  userId     String
-  user       SalonUser         @relation(fields: [userId], references: [id])
+  userId     String?
+  user       SalonUser?         @relation(fields: [userId], references: [id])
 
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
