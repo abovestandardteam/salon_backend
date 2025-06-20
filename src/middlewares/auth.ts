@@ -1,7 +1,7 @@
 import prisma from "config/prisma";
 import { match } from "path-to-regexp";
 import { verifyToken } from "@utils/jwt";
-import { MESSAGES } from "@utils/messages";
+import { CONSTANTS } from "@utils/constants";
 import { StatusCodes } from "http-status-codes";
 import { errorResponse } from "@utils/response";
 import { protectedRoutes } from "./protected.routes";
@@ -25,7 +25,7 @@ export const authMiddleware = async (
     res
       .status(StatusCodes.UNAUTHORIZED)
       .json(
-        errorResponse(StatusCodes.UNAUTHORIZED, MESSAGES.common.pleaseLogin)
+        errorResponse(StatusCodes.UNAUTHORIZED, CONSTANTS.common.pleaseLogin)
       );
     return;
   }
@@ -44,7 +44,9 @@ export const authMiddleware = async (
     if (!user) {
       res
         .status(StatusCodes.NOT_FOUND)
-        .json(errorResponse(StatusCodes.NOT_FOUND, MESSAGES.customer.notFound));
+        .json(
+          errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.customer.notFound)
+        );
     }
 
     req.user = { ...user, userType };

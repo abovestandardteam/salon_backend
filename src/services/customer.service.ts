@@ -2,7 +2,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { CreateCustomerDTO } from "../validations/customer.validation";
 import { errorResponse, successResponse } from "@utils/response";
 import { StatusCodes } from "http-status-codes";
-import { MESSAGES } from "@utils/messages";
+import { CONSTANTS } from "@utils/constants";
 import { generateToken } from "@utils/jwt";
 import { AppointmentStatus } from "@utils/enum";
 import { formatDate, formatDateWithSuffix, formatTime } from "@utils/helper";
@@ -25,7 +25,7 @@ export const createCustomer = async (body: CreateCustomerDTO) => {
     const token = await generateToken(tokenPayload);
 
     // Step 3: Return existing customer with token
-    return successResponse(StatusCodes.OK, MESSAGES.customer.createSuccess, {
+    return successResponse(StatusCodes.OK, CONSTANTS.customer.createSuccess, {
       ...existingCustomer,
       token,
     });
@@ -46,7 +46,7 @@ export const createCustomer = async (body: CreateCustomerDTO) => {
 
   const token = await generateToken(tokenPayload);
 
-  return successResponse(StatusCodes.OK, MESSAGES.customer.createSuccess, {
+  return successResponse(StatusCodes.OK, CONSTANTS.customer.createSuccess, {
     ...newCustomer,
     token,
   });
@@ -68,7 +68,7 @@ export const updateCustomer = async (
     if (existingCustomer) {
       return errorResponse(
         StatusCodes.CONFLICT,
-        MESSAGES.customer.mobileAlreadyExists
+        CONSTANTS.customer.mobileAlreadyExists
       );
     }
   }
@@ -81,7 +81,7 @@ export const updateCustomer = async (
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.customer.updateSuccess,
+    CONSTANTS.customer.updateSuccess,
     customer
   );
 };
@@ -89,7 +89,7 @@ export const updateCustomer = async (
 export const deleteCustomer = async (id: number) => {
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.customer.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.customer.notFound);
   }
 
   const now = new Date();
@@ -98,7 +98,7 @@ export const deleteCustomer = async (id: number) => {
     data: { deletedAt: now },
   });
 
-  return successResponse(StatusCodes.OK, MESSAGES.customer.deleteSuccess);
+  return successResponse(StatusCodes.OK, CONSTANTS.customer.deleteSuccess);
 };
 
 export const getCustomerById = async (id: number) => {
@@ -120,7 +120,7 @@ export const getCustomerById = async (id: number) => {
     },
   });
   if (!customer) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.customer.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.customer.notFound);
   }
 
   const formattedAppointments = customer.appointments.map((appointment) => ({
@@ -137,7 +137,7 @@ export const getCustomerById = async (id: number) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.customer.foundSuccess,
+    CONSTANTS.customer.foundSuccess,
     formattedCustomer
   );
 };
@@ -174,7 +174,7 @@ export const getAllCustomer = async (query: any) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.customer.foundSuccess,
+    CONSTANTS.customer.foundSuccess,
     usersWithExtras
   );
 };

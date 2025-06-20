@@ -5,6 +5,7 @@ import morgan from "morgan";
 import router from "./src/routes/index.route";
 import fileUpload from "express-fileupload";
 import { authMiddleware } from "@middlewares/auth";
+import "./src/schedulers/cronRegistry";
 
 dotenv.config();
 const app = express();

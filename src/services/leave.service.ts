@@ -1,7 +1,7 @@
 import { PrismaClient, SalonUser } from "@prisma/client";
 import { TimeZone } from "@utils/enum";
 import { parse, format } from "date-fns";
-import { MESSAGES } from "@utils/messages";
+import { CONSTANTS } from "@utils/constants";
 import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { CreateLeaveDTO } from "@validations/leave.validation";
@@ -42,7 +42,7 @@ export const createLeave = async (body: CreateLeaveDTO, user: SalonUser) => {
 
   return successResponse(
     StatusCodes.CREATED,
-    MESSAGES.leave.createSuccess,
+    CONSTANTS.leave.createSuccess,
     newLeave
   );
 };
@@ -54,7 +54,7 @@ export const updateLeave = async (
   const existingLeave = await prisma.leave.findUnique({ where: { id } });
 
   if (!existingLeave) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.leave.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.leave.notFound);
   }
 
   const updates: any = { ...data };
@@ -97,7 +97,7 @@ export const updateLeave = async (
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.leave.updateSuccess,
+    CONSTANTS.leave.updateSuccess,
     updatedLeave
   );
 };
@@ -105,7 +105,7 @@ export const updateLeave = async (
 export const deleteLeave = async (id: number) => {
   const leave = await prisma.leave.findUnique({ where: { id } });
   if (!leave) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.leave.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.leave.notFound);
   }
 
   const deletedLeave = await prisma.leave.delete({
@@ -114,7 +114,7 @@ export const deleteLeave = async (id: number) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.leave.deleteSuccess,
+    CONSTANTS.leave.deleteSuccess,
     deletedLeave
   );
 };
@@ -124,7 +124,7 @@ export const getLeaveById = async (id: number) => {
     where: { id },
   });
   if (!leave) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.leave.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.leave.notFound);
   }
 
   const formattedLeave = {
@@ -136,7 +136,7 @@ export const getLeaveById = async (id: number) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.leave.foundSuccess,
+    CONSTANTS.leave.foundSuccess,
     formattedLeave
   );
 };
@@ -155,7 +155,7 @@ export const getAllLeave = async (query: any) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.leave.foundSuccess,
+    CONSTANTS.leave.foundSuccess,
     formattedLeaves
   );
 };

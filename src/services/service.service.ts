@@ -2,7 +2,7 @@ import { PrismaClient, SalonUser } from "@prisma/client";
 import { CreateServiceDTO } from "../validations/service.validation";
 import { errorResponse, successResponse } from "@utils/response";
 import { StatusCodes } from "http-status-codes";
-import { MESSAGES } from "@utils/messages";
+import { CONSTANTS } from "@utils/constants";
 import { AppointmentStatus } from "@utils/enum";
 const prisma = new PrismaClient();
 
@@ -35,7 +35,7 @@ export const createService = async (
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.service.createSuccess,
+    CONSTANTS.service.createSuccess,
     newService
   );
 };
@@ -75,7 +75,7 @@ export const updateService = async (
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.service.updateSuccess,
+    CONSTANTS.service.updateSuccess,
     service
   );
 };
@@ -84,7 +84,7 @@ export const deleteService = async (id: number, user: SalonUser) => {
   // 🔍 Check if the service exists
   const service = await prisma.service.findUnique({ where: { id } });
   if (!service) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.service.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.service.notFound);
   }
 
   // 🧾 Check if the service is linked to any PENDING appointment
@@ -98,7 +98,7 @@ export const deleteService = async (id: number, user: SalonUser) => {
   });
 
   if (isInUse) {
-    return errorResponse(StatusCodes.BAD_REQUEST, MESSAGES.service.isInUse);
+    return errorResponse(StatusCodes.BAD_REQUEST, CONSTANTS.service.isInUse);
   }
 
   // 🗑️ Soft delete
@@ -110,7 +110,7 @@ export const deleteService = async (id: number, user: SalonUser) => {
     },
   });
 
-  return successResponse(StatusCodes.OK, MESSAGES.service.deleteSuccess);
+  return successResponse(StatusCodes.OK, CONSTANTS.service.deleteSuccess);
 };
 
 export const getServiceById = async (id: number) => {
@@ -121,12 +121,12 @@ export const getServiceById = async (id: number) => {
     },
   });
   if (!service) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.service.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.service.notFound);
   }
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.service.foundSuccess,
+    CONSTANTS.service.foundSuccess,
     service
   );
 };
@@ -143,7 +143,7 @@ export const getAllService = async () => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.service.foundSuccess,
+    CONSTANTS.service.foundSuccess,
     services
   );
 };

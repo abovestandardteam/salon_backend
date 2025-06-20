@@ -1,7 +1,7 @@
 import { PrismaClient, SalonUser } from "@prisma/client";
 import { TimeZone } from "@utils/enum";
 import { parse, format } from "date-fns";
-import { MESSAGES } from "@utils/messages";
+import { CONSTANTS } from "@utils/constants";
 import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { CreateSalonDTO } from "../validations/salon.validation";
@@ -43,7 +43,7 @@ export const createSalon = async (body: CreateSalonDTO, user: SalonUser) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salon.createSuccess,
+    CONSTANTS.salon.createSuccess,
     newSalon
   );
 };
@@ -54,7 +54,7 @@ export const updateSalon = async (
 ) => {
   let salon = await prisma.salon.findUnique({ where: { id } });
   if (!salon) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salon.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salon.notFound);
   }
 
   salon = await prisma.salon.update({
@@ -62,13 +62,13 @@ export const updateSalon = async (
     data,
   });
 
-  return successResponse(StatusCodes.OK, MESSAGES.salon.updateSuccess, salon);
+  return successResponse(StatusCodes.OK, CONSTANTS.salon.updateSuccess, salon);
 };
 
 export const deleteSalon = async (id: string) => {
   const salon = await prisma.salon.findUnique({ where: { id } });
   if (!salon) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salon.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salon.notFound);
   }
 
   const deletedSalon = await prisma.salon.delete({
@@ -77,7 +77,7 @@ export const deleteSalon = async (id: string) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salon.deleteSuccess,
+    CONSTANTS.salon.deleteSuccess,
     deletedSalon
   );
 };
@@ -87,7 +87,7 @@ export const getSalonById = async (id: string) => {
     where: { id },
   });
   if (!salon) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salon.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salon.notFound);
   }
 
   const formattedSalon = {
@@ -98,7 +98,7 @@ export const getSalonById = async (id: string) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salon.foundSuccess,
+    CONSTANTS.salon.foundSuccess,
     formattedSalon
   );
 };
@@ -120,7 +120,7 @@ export const getAllSalon = async (query: any) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salon.foundSuccess,
+    CONSTANTS.salon.foundSuccess,
     formattedSalons
   );
 };

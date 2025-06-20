@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { MESSAGES } from "@utils/messages";
+import { CONSTANTS } from "@utils/constants";
 import {
   endOfDay,
   format,
@@ -93,7 +93,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.appointment.createSuccess,
+    CONSTANTS.appointment.createSuccess,
     newAppointment
   );
 };
@@ -106,7 +106,7 @@ export const updateAppointment = async (
     where: { id: id },
   });
   if (!existing) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.appointment.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
 
   const { serviceIds, date: dateObject, startTime, endTime, ...rest } = data;
@@ -191,7 +191,7 @@ export const updateAppointment = async (
   });
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.appointment.updateSuccess,
+    CONSTANTS.appointment.updateSuccess,
     appointment
   );
 };
@@ -205,7 +205,7 @@ export const updateAppointmentStatus = async (
   });
 
   if (!existing) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.appointment.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
 
   const updated = await prisma.appointment.update({
@@ -215,7 +215,7 @@ export const updateAppointmentStatus = async (
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.appointment.updateSuccess,
+    CONSTANTS.appointment.updateSuccess,
     updated
   );
 };
@@ -224,7 +224,7 @@ export const deleteAppointment = async (id: number) => {
   const appointment = await prisma.appointment.findUnique({ where: { id } });
 
   if (!appointment) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.appointment.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
 
   const deletedService = await prisma.appointment.delete({
@@ -233,7 +233,7 @@ export const deleteAppointment = async (id: number) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.appointment.deleteSuccess,
+    CONSTANTS.appointment.deleteSuccess,
     deletedService
   );
 };
@@ -248,7 +248,7 @@ export const getAppointmentById = async (id: number) => {
   });
 
   if (!appointment) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.appointment.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
 
   const formattedSlot = {
@@ -258,7 +258,7 @@ export const getAppointmentById = async (id: number) => {
   };
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.appointment.foundSuccess,
+    CONSTANTS.appointment.foundSuccess,
     formattedSlot
   );
 };
@@ -308,7 +308,7 @@ export const getAllAppointment = async (user: any, query: any) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.appointment.foundSuccess,
+    CONSTANTS.appointment.foundSuccess,
     formattedAppointments
   );
 };
@@ -324,7 +324,7 @@ export const GetSlot = async (query: any) => {
   // 🏠 Fetch salon info
   const salon = await prisma.salon.findFirst();
   if (!salon) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salon.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salon.notFound);
   }
 
   const { openTime, closeTime } = salon;
@@ -335,7 +335,7 @@ export const GetSlot = async (query: any) => {
   // 💇‍♀️ Get all services and determine shortest duration
   const services = await prisma.service.findMany();
   if (services.length === 0) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.service.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.service.notFound);
   }
 
   const minDuration = Math.min(...services.map((s) => s.duration));
@@ -356,7 +356,7 @@ export const GetSlot = async (query: any) => {
 
   // 🚫 If it's a full-day leave, return no slots
   if (leaveToday?.type === LeaveType.DAY) {
-    return successResponse(StatusCodes.OK, MESSAGES.salon.close, {
+    return successResponse(StatusCodes.OK, CONSTANTS.salon.close, {
       date: currentDate,
       day: currentDay,
       slots: [],

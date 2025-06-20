@@ -5,7 +5,7 @@ import {
 } from "../validations/salon-user.validation";
 import { errorResponse, successResponse } from "@utils/response";
 import { StatusCodes } from "http-status-codes";
-import { MESSAGES } from "@utils/messages";
+import { CONSTANTS } from "@utils/constants";
 import { comparePassword, hashPassword } from "@utils/password";
 import { generateToken } from "@utils/jwt";
 const prisma = new PrismaClient();
@@ -20,7 +20,7 @@ export const createSalonUser = async (body: CreateSalonUserDTO) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salonUser.createSuccess,
+    CONSTANTS.salonUser.createSuccess,
     newSalonUser
   );
 };
@@ -31,7 +31,7 @@ export const updateSalonUser = async (
 ) => {
   let salonUser = await prisma.salonUser.findUnique({ where: { id } });
   if (!salonUser) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salonUser.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salonUser.notFound);
   }
 
   // If password is being updated, hash it
@@ -46,7 +46,7 @@ export const updateSalonUser = async (
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salonUser.updateSuccess,
+    CONSTANTS.salonUser.updateSuccess,
     salonUser
   );
 };
@@ -57,7 +57,7 @@ export const loginSalonUser = async (body: LoginSalonUserDTO) => {
   });
 
   if (!salonUser) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salonUser.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salonUser.notFound);
   }
 
   const isPasswordValid = await comparePassword(
@@ -67,7 +67,7 @@ export const loginSalonUser = async (body: LoginSalonUserDTO) => {
   if (!isPasswordValid) {
     return errorResponse(
       StatusCodes.UNAUTHORIZED,
-      MESSAGES.salonUser.invalidCredntials
+      CONSTANTS.salonUser.invalidCredntials
     );
   }
   const { password, ...safeUser } = salonUser;
@@ -77,7 +77,7 @@ export const loginSalonUser = async (body: LoginSalonUserDTO) => {
     userType: "salonUser",
   });
 
-  return successResponse(StatusCodes.OK, MESSAGES.salonUser.loginSuccess, {
+  return successResponse(StatusCodes.OK, CONSTANTS.salonUser.loginSuccess, {
     ...safeUser,
     token,
   });
@@ -86,7 +86,7 @@ export const loginSalonUser = async (body: LoginSalonUserDTO) => {
 export const deleteSalonUser = async (id: string) => {
   const salonUser = await prisma.salonUser.findUnique({ where: { id } });
   if (!salonUser) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salonUser.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salonUser.notFound);
   }
 
   const now = new Date();
@@ -95,7 +95,7 @@ export const deleteSalonUser = async (id: string) => {
     data: { deletedAt: now },
   });
 
-  return successResponse(StatusCodes.OK, MESSAGES.salonUser.deleteSuccess);
+  return successResponse(StatusCodes.OK, CONSTANTS.salonUser.deleteSuccess);
 };
 
 export const getSalonUserById = async (id: string) => {
@@ -106,12 +106,12 @@ export const getSalonUserById = async (id: string) => {
     },
   });
   if (!salonUser) {
-    return errorResponse(StatusCodes.NOT_FOUND, MESSAGES.salonUser.notFound);
+    return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salonUser.notFound);
   }
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salonUser.foundSuccess,
+    CONSTANTS.salonUser.foundSuccess,
     salonUser
   );
 };
@@ -126,7 +126,7 @@ export const getAllSalonUser = async (query: any) => {
 
   return successResponse(
     StatusCodes.OK,
-    MESSAGES.salonUser.foundSuccess,
+    CONSTANTS.salonUser.foundSuccess,
     leaves
   );
 };
