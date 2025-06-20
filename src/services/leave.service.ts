@@ -10,6 +10,7 @@ import { formatTime } from "@utils/helper";
 const prisma = new PrismaClient();
 
 export const createLeave = async (body: CreateLeaveDTO, user: SalonUser) => {
+  console.log("hello");
   const { date: dateString, startTime, endTime, ...rest } = body;
 
   // Parse only the date portion
