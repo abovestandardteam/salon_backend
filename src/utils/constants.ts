@@ -55,6 +55,7 @@ export const CONSTANTS = {
 
 export const CRON_EXPRESSIONS = {
   EVERY_5_SECONDS: "*/5 * * * * *",
+  EVERY_10_SECONDS: "*/10 * * * * *",
   EVERY_MINUTE: "* * * * *",
   EVERY_5_MINUTES: "*/5 * * * *",
   EVERY_10_MINUTES: "*/10 * * * *",

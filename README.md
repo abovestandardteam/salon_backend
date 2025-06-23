@@ -27,7 +27,7 @@ createdAt DateTime @default(now())
 # -------------------------------------------------------------------------
 
 🚀 4. Create Database & Migrate Schema
-npx prisma migrate dev --user-table init
+npx prisma migrate dev user-table init
 
 This will:
 Create the DB schema

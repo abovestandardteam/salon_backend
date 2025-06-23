@@ -41,6 +41,18 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     );
   }
 
+  // ✅ Check if customer exists
+  const existingCustomer = await prisma.customer.findUnique({
+    where: { id: body.customerId },
+  });
+
+  if (!existingCustomer) {
+    return errorResponse(
+      StatusCodes.NOT_FOUND,
+      `Customer with ID ${body.customerId} not found`
+    );
+  }
+
   // Convert date to YYYY-MM-DD string
   const dateString = dateObject.toISOString().split("T")[0];
 
@@ -127,6 +139,18 @@ export const updateAppointment = async (
         `Service not found: ${invalidIds.join(", ")}`
       );
     }
+  }
+
+  // ✅ Check if customer exists
+  const existingCustomer = await prisma.customer.findUnique({
+    where: { id: data.customerId },
+  });
+
+  if (!existingCustomer) {
+    return errorResponse(
+      StatusCodes.NOT_FOUND,
+      `Customer with ID ${data.customerId} not found`
+    );
   }
 
   // 🕒 Parse date/time if provided

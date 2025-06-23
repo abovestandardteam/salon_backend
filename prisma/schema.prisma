@@ -108,37 +108,39 @@ model Leave {
 }
 
 model Appointment {
-  id         Int               @id @default(autoincrement())
-  date       DateTime
-  startTime  DateTime?         @db.Timestamptz   
-  endTime    DateTime?         @db.Timestamptz 
-  status     AppointmentStatus @default(PENDING)
-  notes      String? 
+  id                  Int               @id @default(autoincrement())
+  date                DateTime
+  startTime           DateTime?         @db.Timestamptz   
+  endTime             DateTime?         @db.Timestamptz 
+  status              AppointmentStatus @default(PENDING)
+  notes               String? 
+  notificationSent    Boolean           @default(false)
 
-  services   Service[]         @relation("ServiceOnAppointments")
+  services            Service[]         @relation("ServiceOnAppointments")
 
-  customerId Int
-  customer   Customer          @relation(fields: [customerId], references: [id])
+  customerId          Int
+  customer            Customer          @relation(fields: [customerId], references: [id])
 
-  userId     String?
-  user       SalonUser?         @relation(fields: [userId], references: [id])
+  userId              String?
+  user                SalonUser?         @relation(fields: [userId], references: [id])
 
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  deletedAt  DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
 }
 
 model Customer {
-  id            Int            @id @default(autoincrement())
-  firstName     String
-  lastName      String
-  mobileNumber  String         @unique 
+  id                Int            @id @default(autoincrement())
+  firstName         String
+  lastName          String
+  mobileNumber      String         @unique 
+  notificationToken String?
 
-  appointments  Appointment[]  // One-to-many relation
+  appointments      Appointment[]  // One-to-many relation
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt  DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
 }
 
 
