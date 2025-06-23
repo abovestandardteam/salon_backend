@@ -6,6 +6,7 @@ import {
   isAfter,
   isBefore,
   isEqual,
+  isSameDay,
   parse,
   startOfDay,
 } from "date-fns";
@@ -24,15 +25,15 @@ import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
 const prisma = new PrismaClient();
 
 export const createAppointment = async (body: CreateAppointmentDTO) => {
-  const { serviceIds, date: dateObject, startTime, endTime, ...rest } = body;
+  const { serviceIds, date: dateObject, startTime, ...rest } = body;
 
-  // ✅ Validate that all provided service IDs exist
-  const foundServices = await prisma.service.findMany({
+  // ✅ Validate service IDs
+  const services = await prisma.service.findMany({
     where: { id: { in: serviceIds } },
-    select: { id: true },
+    select: { id: true, duration: true },
   });
 
-  const foundServiceIds = new Set(foundServices.map((s) => s.id));
+  const foundServiceIds = new Set(services.map((s) => s.id));
   const invalidIds = serviceIds.filter((id) => !foundServiceIds.has(id));
 
   if (invalidIds.length > 0) {
@@ -54,56 +55,50 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     );
   }
 
-  // Convert date to YYYY-MM-DD string
+  // 📅 Parse date and time
   const dateString = dateObject.toISOString().split("T")[0];
+  const start = fromZonedTime(
+    parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
+    TimeZone.IST
+  );
 
-  // Combine date + time and convert from user's timezone to UTC
-  const parsedStartTime = startTime
-    ? fromZonedTime(
-        parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
-        TimeZone.IST
-      )
-    : undefined;
+  // ⏱️ Calculate total duration
+  const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
+  const end = new Date(start.getTime() + totalDuration * 60_000);
 
-  const parsedEndTime = endTime
-    ? fromZonedTime(
-        parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
-        TimeZone.IST
-      )
-    : undefined;
-
-  // 🚫 Reject if start time is in the past
-  const now = new Date(); // Current UTC time
-  if (parsedStartTime && parsedStartTime < now) {
+  // 🚫 Reject if start is in the past
+  const now = new Date();
+  if (start < now) {
     return errorResponse(
       StatusCodes.BAD_REQUEST,
       `You cannot book an appointment in the past`
     );
   }
 
-  // ✅ Check for overlapping appointments
+  // ❌ Check for overlapping appointments
   const overlappingAppointment = await prisma.appointment.findFirst({
     where: {
       status: AppointmentStatus.PENDING,
       date: dateObject,
-      startTime: { lt: parsedEndTime },
-      endTime: { gt: parsedStartTime },
+      startTime: { lt: end },
+      endTime: { gt: start },
     },
   });
 
   if (overlappingAppointment) {
     return errorResponse(
       StatusCodes.CONFLICT,
-      `Time slot already booked from ${startTime} to ${endTime}`
+      `Time slot already booked from ${startTime} to ${format(end, "hh:mm a")}`
     );
   }
 
+  // ✅ Create appointment
   const newAppointment = await prisma.appointment.create({
     data: {
       ...rest,
       date: dateObject,
-      startTime: parsedStartTime,
-      endTime: parsedEndTime,
+      startTime: start,
+      endTime: end,
       services: {
         connect: serviceIds.map((id) => ({ id })),
       },
@@ -125,19 +120,21 @@ export const updateAppointment = async (
   data: Partial<CreateAppointmentDTO>
 ) => {
   const existing = await prisma.appointment.findUnique({
-    where: { id: id },
+    where: { id },
   });
+
   if (!existing) {
     return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
 
-  const { serviceIds, date: dateObject, startTime, endTime, ...rest } = data;
+  const { serviceIds, date: dateObject, startTime, ...rest } = data;
 
-  // 🧪 Validate serviceIds if provided
+  // ✅ Validate serviceIds if provided
+  let totalDuration = 0;
   if (serviceIds && serviceIds.length > 0) {
     const foundServices = await prisma.service.findMany({
       where: { id: { in: serviceIds } },
-      select: { id: true },
+      select: { id: true, duration: true },
     });
 
     const foundServiceIds = new Set(foundServices.map((s) => s.id));
@@ -149,44 +146,45 @@ export const updateAppointment = async (
         `Service not found: ${invalidIds.join(", ")}`
       );
     }
+
+    totalDuration = foundServices.reduce((sum, s) => sum + s.duration, 0);
   }
 
   // ✅ Check if customer exists
-  const existingCustomer = await prisma.customer.findUnique({
-    where: { id: data.customerId },
-  });
+  if (data.customerId) {
+    const existingCustomer = await prisma.customer.findUnique({
+      where: { id: data.customerId },
+    });
 
-  if (!existingCustomer) {
-    return errorResponse(
-      StatusCodes.NOT_FOUND,
-      `Customer with ID ${data.customerId} not found`
-    );
+    if (!existingCustomer) {
+      return errorResponse(
+        StatusCodes.NOT_FOUND,
+        `Customer with ID ${data.customerId} not found`
+      );
+    }
   }
 
-  // 🕒 Parse date/time if provided
-  const dateString = dateObject
-    ? dateObject.toISOString().split("T")[0]
-    : undefined;
+  // 🕒 Parse start time if provided
+  let parsedStartTime: Date | undefined = undefined;
+  let parsedEndTime: Date | undefined = undefined;
 
-  let parsedStartTime = undefined;
-  let parsedEndTime = undefined;
+  const dateString = (dateObject ?? existing.date).toISOString().split("T")[0];
 
-  if (dateString && startTime) {
+  if (startTime) {
     parsedStartTime = fromZonedTime(
       parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
       TimeZone.IST
     );
-  }
 
-  if (dateString && endTime) {
-    parsedEndTime = fromZonedTime(
-      parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
-      TimeZone.IST
-    );
+    if (totalDuration > 0) {
+      parsedEndTime = new Date(
+        parsedStartTime.getTime() + totalDuration * 60000
+      );
+    }
   }
 
   // 🚫 Reject if start time is in the past
-  const now = new Date(); // Current UTC time
+  const now = new Date();
   if (parsedStartTime && parsedStartTime < now) {
     return errorResponse(
       StatusCodes.BAD_REQUEST,
@@ -194,13 +192,13 @@ export const updateAppointment = async (
     );
   }
 
-  // ❌ Check for overlapping appointments if time is being updated
-  if (parsedStartTime && parsedEndTime && dateObject) {
+  // ❌ Check for overlapping appointments (if start/end are changing)
+  if (parsedStartTime && parsedEndTime) {
     const overlap = await prisma.appointment.findFirst({
       where: {
         id: { not: id },
         status: AppointmentStatus.PENDING,
-        date: dateObject,
+        date: dateObject ?? existing.date,
         startTime: { lt: parsedEndTime },
         endTime: { gt: parsedStartTime },
       },
@@ -209,12 +207,15 @@ export const updateAppointment = async (
     if (overlap) {
       return errorResponse(
         StatusCodes.CONFLICT,
-        `Time slot already booked from ${startTime} to ${endTime}`
+        `Time slot already booked from ${startTime} to ${format(
+          parsedEndTime,
+          "hh:mm a"
+        )}`
       );
     }
   }
 
-  // 🛠️ Construct update object
+  // 🛠️ Prepare update data
   const updateData: any = {
     ...rest,
     ...(dateObject && { date: dateObject }),
@@ -232,6 +233,7 @@ export const updateAppointment = async (
     data: updateData,
     include: { services: true },
   });
+
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.appointment.updateSuccess,
@@ -444,6 +446,12 @@ export const GetSlot = async (query: any) => {
       );
     });
   });
+
+  // ❌ Filter out past slots (if date is today)
+  const now = new Date();
+  if (isSameDay(today, now)) {
+    availableSlots = availableSlots.filter((slot) => isAfter(slot.start, now));
+  }
 
   // ⛔ Remove slots affected by hour-based leave
   if (

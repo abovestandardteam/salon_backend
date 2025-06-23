@@ -5,7 +5,8 @@ import { StatusCodes } from "http-status-codes";
 import { CONSTANTS } from "@utils/constants";
 import { generateToken } from "@utils/jwt";
 import { AppointmentStatus } from "@utils/enum";
-import { formatDate, formatDateWithSuffix, formatTime } from "@utils/helper";
+import { formatDateWithSuffix, formatTime } from "@utils/helper";
+import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
 const prisma = new PrismaClient();
 
 export const createCustomer = async (body: CreateCustomerDTO) => {
@@ -143,7 +144,9 @@ export const getCustomerById = async (id: number) => {
 };
 
 export const getAllCustomer = async (query: any) => {
-  // Build a simple where-clause: either the search OR empty (fetch all)
+  const { page, limit, skip } = getPaginationParams(query);
+
+  // 🔍 Search filter
   const whereFilter: Prisma.CustomerWhereInput = query.search
     ? {
         OR: [
@@ -154,8 +157,14 @@ export const getAllCustomer = async (query: any) => {
       }
     : {};
 
-  const users: any[] = await prisma.customer.findMany({
+  // 🔢 Get total for pagination
+  const total = await prisma.customer.count({ where: whereFilter });
+
+  // 📦 Fetch paginated customers
+  const users = await prisma.customer.findMany({
     where: whereFilter,
+    skip,
+    take: limit,
     orderBy: { createdAt: "desc" },
     include: {
       appointments: {
@@ -166,15 +175,19 @@ export const getAllCustomer = async (query: any) => {
     },
   });
 
+  // 🎯 Add computed fields
   const usersWithExtras = users.map(({ appointments, ...customer }) => ({
     ...customer,
-    totalAppointments: appointments.length, // only COMPLETED ones
-    lastVisit: formatDateWithSuffix(appointments[0]?.updatedAt) ?? null, // latest COMPLETED visit
+    totalAppointments: appointments.length,
+    lastVisit: appointments[0]?.updatedAt
+      ? formatDateWithSuffix(appointments[0].updatedAt)
+      : null,
   }));
 
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.customer.foundSuccess,
-    usersWithExtras
+    usersWithExtras,
+    getPaginationMeta(total, page, limit)
   );
 };
