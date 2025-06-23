@@ -198,18 +198,25 @@ export const updateAppointment = async (
   id: number,
   data: Partial<CreateAppointmentDTO>
 ) => {
-  const existing = await prisma.appointment.findUnique({
-    where: { id },
-  });
+  // ────────────────────────────────────────────────
+  // 🔍 Step 1: Find Existing Appointment
+  // ────────────────────────────────────────────────
+  const existing = await prisma.appointment.findUnique({ where: { id } });
 
   if (!existing) {
     return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
 
+  // ────────────────────────────────────────────────
+  // 🔄 Step 2: Extract Input
+  // ────────────────────────────────────────────────
   const { serviceIds, date: dateObject, startTime, ...rest } = data;
 
-  // ✅ Validate serviceIds if provided
+  // ────────────────────────────────────────────────
+  // 🧼 Step 3: Validate Services & Calculate Duration
+  // ────────────────────────────────────────────────
   let totalDuration = 0;
+
   if (serviceIds && serviceIds.length > 0) {
     const foundServices = await prisma.service.findMany({
       where: { id: { in: serviceIds } },
@@ -229,7 +236,9 @@ export const updateAppointment = async (
     totalDuration = foundServices.reduce((sum, s) => sum + s.duration, 0);
   }
 
-  // ✅ Check if customer exists
+  // ────────────────────────────────────────────────
+  // 👤 Step 4: Validate Customer (if updating)
+  // ────────────────────────────────────────────────
   if (data.customerId) {
     const existingCustomer = await prisma.customer.findUnique({
       where: { id: data.customerId },
@@ -243,15 +252,28 @@ export const updateAppointment = async (
     }
   }
 
-  // 🕒 Parse start time if provided
+  // ────────────────────────────────────────────────
+  // 🕒 Step 5: Parse Start & End Time (if provided)
+  // ────────────────────────────────────────────────
   let parsedStartTime: Date | undefined = undefined;
   let parsedEndTime: Date | undefined = undefined;
 
   const dateString = (dateObject ?? existing.date).toISOString().split("T")[0];
 
+  // 🕛 Special handling for "12:00 am" — treat as next day midnight
+  let parsedDateForTime = dateString;
+  if (startTime && startTime.trim().toLowerCase() === "12:00 am") {
+    const parsedDate = parseISO(dateString);
+    parsedDateForTime = format(addDays(parsedDate, 1), "yyyy-MM-dd");
+  }
+
   if (startTime) {
     parsedStartTime = fromZonedTime(
-      parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
+      parse(
+        `${parsedDateForTime} ${startTime}`,
+        "yyyy-MM-dd hh:mm a",
+        new Date()
+      ),
       TimeZone.IST
     );
 
@@ -262,7 +284,55 @@ export const updateAppointment = async (
     }
   }
 
-  // 🚫 Reject if start time is in the past
+  // ────────────────────────────────────────────────
+  // 🏠 Step 6: Fetch Salon Info and Close Time
+  // ────────────────────────────────────────────────
+  if (parsedStartTime && serviceIds && serviceIds.length > 0) {
+    const serviceWithUser = await prisma.service.findFirst({
+      where: { id: serviceIds[0] },
+      include: { user: true },
+    });
+
+    if (!serviceWithUser?.user?.salonId) {
+      return errorResponse(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "SalonId not found for the service"
+      );
+    }
+
+    const salon = await prisma.salon.findFirst({
+      where: { id: serviceWithUser.user.salonId },
+    });
+
+    if (!salon || !salon.closeTime) {
+      return errorResponse(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "Salon closing time is not configured"
+      );
+    }
+
+    let salonCloseDateTime = new Date(salon.closeTime);
+
+    // 👀 Adjust for midnight close (12:00 AM = next day)
+    if (format(salonCloseDateTime, "hh:mm a").toLowerCase() === "12:00 am") {
+      salonCloseDateTime = addDays(salonCloseDateTime, 1);
+    }
+
+    // ❌ Prevent booking at/after closing time
+    if (parsedStartTime >= salonCloseDateTime) {
+      return errorResponse(
+        StatusCodes.BAD_REQUEST,
+        `Appointment cannot be scheduled at ${format(
+          salonCloseDateTime,
+          "hh:mm a"
+        )} as the salon will be closed at that time. Please choose an earlier slot.`
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  // ⛔ Step 7: Reject if Start Time is in the Past
+  // ────────────────────────────────────────────────
   const now = new Date();
   if (parsedStartTime && parsedStartTime < now) {
     return errorResponse(
@@ -271,7 +341,9 @@ export const updateAppointment = async (
     );
   }
 
-  // ❌ Check for overlapping appointments (if start/end are changing)
+  // ────────────────────────────────────────────────
+  // ❌ Step 8: Check for Overlapping Appointments
+  // ────────────────────────────────────────────────
   if (parsedStartTime && parsedEndTime) {
     const overlap = await prisma.appointment.findFirst({
       where: {
@@ -294,7 +366,9 @@ export const updateAppointment = async (
     }
   }
 
-  // 🛠️ Prepare update data
+  // ────────────────────────────────────────────────
+  // 🛠️ Step 9: Prepare Data and Update Appointment
+  // ────────────────────────────────────────────────
   const updateData: any = {
     ...rest,
     ...(dateObject && { date: dateObject }),
@@ -313,6 +387,9 @@ export const updateAppointment = async (
     include: { services: true },
   });
 
+  // ────────────────────────────────────────────────
+  // ✅ Step 10: Return Success
+  // ────────────────────────────────────────────────
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.appointment.updateSuccess,
