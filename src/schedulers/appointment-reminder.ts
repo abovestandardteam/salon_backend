@@ -11,7 +11,7 @@ const todayEnd = endOfDay(new Date()); // 23:59:59
 
 const prisma = new PrismaClient();
 
-cron.schedule(CRON_EXPRESSIONS.EVERY_10_SECONDS, async () => {
+cron.schedule(CRON_EXPRESSIONS.EVERY_10_MINUTES, async () => {
   const now = new Date();
 
   try {

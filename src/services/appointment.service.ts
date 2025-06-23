@@ -71,6 +71,15 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
       )
     : undefined;
 
+  // 🚫 Reject if start time is in the past
+  const now = new Date(); // Current UTC time
+  if (parsedStartTime && parsedStartTime < now) {
+    return errorResponse(
+      StatusCodes.BAD_REQUEST,
+      `You cannot book an appointment in the past`
+    );
+  }
+
   // ✅ Check for overlapping appointments
   const overlappingAppointment = await prisma.appointment.findFirst({
     where: {
@@ -172,6 +181,15 @@ export const updateAppointment = async (
     parsedEndTime = fromZonedTime(
       parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
       TimeZone.IST
+    );
+  }
+
+  // 🚫 Reject if start time is in the past
+  const now = new Date(); // Current UTC time
+  if (parsedStartTime && parsedStartTime < now) {
+    return errorResponse(
+      StatusCodes.BAD_REQUEST,
+      `You cannot book an appointment in the past`
     );
   }
 
@@ -391,7 +409,7 @@ export const GetSlot = async (query: any) => {
   const appointments = await prisma.appointment.findMany({
     where: {
       status: AppointmentStatus.PENDING,
-      startTime: {
+      date: {
         gte: start,
         lte: end,
       },

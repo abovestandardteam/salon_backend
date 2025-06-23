@@ -5,7 +5,7 @@ import { CRON_EXPRESSIONS } from "@utils/constants";
 
 const prisma = new PrismaClient();
 
-cron.schedule(CRON_EXPRESSIONS.EVERY_10_SECONDS, async () => {
+cron.schedule(CRON_EXPRESSIONS.EVERY_10_MINUTES, async () => {
   const now = new Date();
   try {
     // Step 1: Find appointments that need to be updated
