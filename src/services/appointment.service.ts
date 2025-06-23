@@ -9,6 +9,7 @@ import {
   isEqual,
   isSameDay,
   parse,
+  parseISO,
   startOfDay,
 } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
@@ -27,15 +28,37 @@ const prisma = new PrismaClient();
 
 export const createAppointment = async (body: CreateAppointmentDTO) => {
   const { serviceIds, date: dateObject, startTime, ...rest } = body;
-
-  // 📅 Step 1: Parse Date and StartTime
+  if (!startTime) {
+    return errorResponse(
+      StatusCodes.BAD_REQUEST,
+      "Start time is required to create an appointment"
+    );
+  }
+  // ────────────────────────────────────────────────
+  // 📅 Step 1: Parse Date and StartTime (Handle "12:00 am")
+  // ────────────────────────────────────────────────
   const dateString = dateObject.toISOString().split("T")[0];
+
+  // Adjust the date if "12:00 am" is provided — treat it as next day midnight
+  let parsedDateForTime = dateString;
+  if (startTime.trim().toLowerCase() === "12:00 am") {
+    const parsedDate = parseISO(dateString);
+    parsedDateForTime = format(addDays(parsedDate, 1), "yyyy-MM-dd");
+  }
+
+  // Combine date + time and parse with timezone
   const start = fromZonedTime(
-    parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
+    parse(
+      `${parsedDateForTime} ${startTime}`,
+      "yyyy-MM-dd hh:mm a",
+      new Date()
+    ),
     TimeZone.IST
   );
 
+  // ────────────────────────────────────────────────
   // ⛔ Step 2: Reject if StartTime is in the past
+  // ────────────────────────────────────────────────
   const now = new Date();
   if (start < now) {
     return errorResponse(
@@ -44,7 +67,9 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     );
   }
 
+  // ────────────────────────────────────────────────
   // 🧼 Step 3: Validate Service IDs
+  // ────────────────────────────────────────────────
   const services = await prisma.service.findMany({
     where: { id: { in: serviceIds } },
     select: { id: true, duration: true, user: true },
@@ -52,6 +77,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
 
   const validServiceIds = new Set(services.map((s) => s.id));
   const invalidIds = serviceIds.filter((id) => !validServiceIds.has(id));
+
   if (invalidIds.length > 0) {
     return errorResponse(
       StatusCodes.BAD_REQUEST,
@@ -59,51 +85,71 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     );
   }
 
+  // ────────────────────────────────────────────────
   // 👤 Step 4: Validate Customer
+  // ────────────────────────────────────────────────
   const existingCustomer = await prisma.customer.findUnique({
     where: { id: body.customerId },
   });
+
   if (!existingCustomer) {
     return errorResponse(
       StatusCodes.NOT_FOUND,
       `Customer with ID ${body.customerId} not found`
     );
   }
+
+  // ────────────────────────────────────────────────
+  // 🏠 Step 5: Fetch Salon Info and Close Time
+  // ────────────────────────────────────────────────
   if (!services[0].user.salonId) {
     return errorResponse(
       StatusCodes.INTERNAL_SERVER_ERROR,
       "SalonId not found for the service"
     );
   }
-  // 🏠 Step 5: Fetch Salon Close Time
+
   const salon = await prisma.salon.findFirst({
     where: {
       id: services[0].user.salonId,
     },
   });
+
   if (!salon || !salon.closeTime) {
     return errorResponse(
       StatusCodes.INTERNAL_SERVER_ERROR,
       "Salon closing time is not configured"
     );
   }
-  const salonCloseDateTime = new Date(salon.closeTime);
 
+  let salonCloseDateTime = new Date(salon.closeTime);
+
+  if (format(salonCloseDateTime, "hh:mm a").toLowerCase() === "12:00 am") {
+    salonCloseDateTime = addDays(salonCloseDateTime, 1);
+  }
+
+  // ────────────────────────────────────────────────
+  // ❌ Step 6: Prevent Appointments At/After Close Time
+  // ────────────────────────────────────────────────
   if (start >= salonCloseDateTime) {
     return errorResponse(
       StatusCodes.BAD_REQUEST,
-      `Appointment cannot start at or after salon closing time: ${format(
+      `Appointment cannot be scheduled at ${format(
         salonCloseDateTime,
         "hh:mm a"
-      )}`
+      )} as the salon will be closed at that time. Please choose an earlier slot.`
     );
   }
 
-  // 🕓 Step 7: Calculate EndTime Based on Total Duration
+  // ────────────────────────────────────────────────
+  // 🕓 Step 7: Calculate Appointment End Time
+  // ────────────────────────────────────────────────
   const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
   const end = new Date(start.getTime() + totalDuration * 60_000);
 
-  // ❌ Step 8: Prevent Overlapping Appointments
+  // ────────────────────────────────────────────────
+  // ❌ Step 8: Check for Overlapping Appointments
+  // ────────────────────────────────────────────────
   const overlapping = await prisma.appointment.findFirst({
     where: {
       status: AppointmentStatus.PENDING,
@@ -112,6 +158,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
       endTime: { gt: start },
     },
   });
+
   if (overlapping) {
     return errorResponse(
       StatusCodes.CONFLICT,
@@ -119,7 +166,9 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     );
   }
 
+  // ────────────────────────────────────────────────
   // ✅ Step 9: Create Appointment
+  // ────────────────────────────────────────────────
   const appointment = await prisma.appointment.create({
     data: {
       ...rest,
@@ -130,9 +179,14 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
         connect: serviceIds.map((id) => ({ id })),
       },
     },
-    include: { services: true },
+    include: {
+      services: true,
+    },
   });
 
+  // ────────────────────────────────────────────────
+  // 🎉 Return Success Response
+  // ────────────────────────────────────────────────
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.appointment.createSuccess,
