@@ -470,14 +470,20 @@ export const GetSlot = async (query: any) => {
   // ✅ Format remaining slots to { start: "hh:mm am/pm", end: "hh:mm am/pm" }
   const formattedSlots = availableSlots.map(formatSlot);
 
+  const startOnly = formattedSlots.map((slot) => {
+    return slot.start;
+  });
+
   // 🎉 Return response
   return successResponse(
     StatusCodes.OK,
     "Available slots fetched successfully",
     {
       totalSlots: formattedSlots.length,
+      totalStartSlots: startOnly.length,
       date: currentDate,
       day: currentDay,
+      startOnly: startOnly,
       slots: formattedSlots,
     }
   );

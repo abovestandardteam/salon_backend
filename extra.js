@@ -78,6 +78,12 @@
 //     });
 //   });
 
+//   // ❌ Filter out past slots (if date is today)
+//   const now = new Date();
+//   if (isSameDay(today, now)) {
+//     availableSlots = availableSlots.filter((slot) => isAfter(slot.start, now));
+//   }
+
 //   // ⛔ Remove slots affected by hour-based leave
 //   if (
 //     leaveToday?.type === LeaveType.HOURS &&
@@ -105,103 +111,6 @@
 //       day: currentDay,
 //       slots: formattedSlots,
 //     }
-//   );
-// };
-
-// export const createAppointment = async (body: CreateAppointmentDTO) => {
-//   const { serviceIds, date: dateObject, startTime, endTime, ...rest } = body;
-
-//   // ✅ Validate that all provided service IDs exist
-//   const foundServices = await prisma.service.findMany({
-//     where: { id: { in: serviceIds } },
-//     select: { id: true },
-//   });
-
-//   const foundServiceIds = new Set(foundServices.map((s) => s.id));
-//   const invalidIds = serviceIds.filter((id) => !foundServiceIds.has(id));
-
-//   if (invalidIds.length > 0) {
-//     return errorResponse(
-//       StatusCodes.BAD_REQUEST,
-//       `Service not found: ${invalidIds.join(", ")}`
-//     );
-//   }
-
-//   // ✅ Check if customer exists
-//   const existingCustomer = await prisma.customer.findUnique({
-//     where: { id: body.customerId },
-//   });
-
-//   if (!existingCustomer) {
-//     return errorResponse(
-//       StatusCodes.NOT_FOUND,
-//       `Customer with ID ${body.customerId} not found`
-//     );
-//   }
-
-//   // Convert date to YYYY-MM-DD string
-//   const dateString = dateObject.toISOString().split("T")[0];
-
-//   // Combine date + time and convert from user's timezone to UTC
-//   const parsedStartTime = startTime
-//     ? fromZonedTime(
-//         parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
-//         TimeZone.IST
-//       )
-//     : undefined;
-
-//   const parsedEndTime = endTime
-//     ? fromZonedTime(
-//         parse(`${dateString} ${endTime}`, "yyyy-MM-dd hh:mm a", new Date()),
-//         TimeZone.IST
-//       )
-//     : undefined;
-
-//   // 🚫 Reject if start time is in the past
-//   // const now = new Date(); // Current UTC time
-//   // if (parsedStartTime && parsedStartTime < now) {
-//   //   return errorResponse(
-//   //     StatusCodes.BAD_REQUEST,
-//   //     `You cannot book an appointment in the past`
-//   //   );
-//   // }
-
-//   // ✅ Check for overlapping appointments
-//   const overlappingAppointment = await prisma.appointment.findFirst({
-//     where: {
-//       status: AppointmentStatus.PENDING,
-//       date: dateObject,
-//       startTime: { lt: parsedEndTime },
-//       endTime: { gt: parsedStartTime },
-//     },
-//   });
-
-//   if (overlappingAppointment) {
-//     return errorResponse(
-//       StatusCodes.CONFLICT,
-//       `Time slot already booked from ${startTime} to ${endTime}`
-//     );
-//   }
-
-//   const newAppointment = await prisma.appointment.create({
-//     data: {
-//       ...rest,
-//       date: dateObject,
-//       startTime: parsedStartTime,
-//       endTime: parsedEndTime,
-//       services: {
-//         connect: serviceIds.map((id) => ({ id })),
-//       },
-//     },
-//     include: {
-//       services: true,
-//     },
-//   });
-
-//   return successResponse(
-//     StatusCodes.OK,
-//     CONSTANTS.appointment.createSuccess,
-//     newAppointment
 //   );
 // };
 
