@@ -64,3 +64,20 @@ export const formatDateWithSuffix = (date: Date | null): string | null => {
   const monthYear = format(date, "MMMM,yyyy");
   return `${day} ${monthYear}`;
 };
+
+/**
+ * Converts a duration in minutes to a human-readable string format.
+ *
+ * @param {number} minutes - Duration in minutes to be formatted.
+ * @returns {string} A string representing the duration in hours and minutes,
+ *                   e.g., "1 hr and 30 min", "2 hrs", "45 min".
+ */
+
+export const formatDuration = (minutes: number): string => {
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  if (hrs && mins) return `${hrs} hr${hrs > 1 ? "s" : ""} and ${mins} min`;
+  if (hrs) return `${hrs} hr${hrs > 1 ? "s" : ""}`;
+  return `${mins} min`;
+};

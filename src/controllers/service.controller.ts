@@ -90,7 +90,7 @@ export const GetById = async (req: Request, res: Response) => {
  */
 export const GetAll = async (req: Request, res: Response) => {
   try {
-    const result = await getAllService();
+    const result = await getAllService(req.query);
     res.status(result.statusCode).json(result);
   } catch (error) {
     console.error("Error retrieving services:", error);

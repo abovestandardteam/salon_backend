@@ -1,9 +1,11 @@
-import { PrismaClient, SalonUser } from "@prisma/client";
+import { Prisma, PrismaClient, SalonUser } from "@prisma/client";
 import { CreateServiceDTO } from "../validations/service.validation";
 import { errorResponse, successResponse } from "@utils/response";
 import { StatusCodes } from "http-status-codes";
 import { CONSTANTS } from "@utils/constants";
 import { AppointmentStatus } from "@utils/enum";
+import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
+import { formatDuration } from "@utils/helper";
 const prisma = new PrismaClient();
 
 export const createService = async (
@@ -131,19 +133,51 @@ export const getServiceById = async (id: number) => {
   );
 };
 
-export const getAllService = async () => {
+export const getAllService = async (query: any) => {
+  const { page, limit, skip } = getPaginationParams(query);
+
+  // 🔍 Search filter
+  const whereFilter: Prisma.ServiceWhereInput = {
+    deletedAt: null,
+    ...(query.search
+      ? {
+          OR: [
+            {
+              name: {
+                contains: query.search,
+                mode: "insensitive",
+              },
+            },
+          ],
+        }
+      : {}),
+  };
+
+  // 🔢 Count total matching records
+  const total = await prisma.service.count({
+    where: whereFilter,
+  });
+
+  // 📦 Fetch paginated records
   const services = await prisma.service.findMany({
-    where: {
-      deletedAt: null,
-    },
+    where: whereFilter,
+    skip,
+    take: limit,
     orderBy: {
       createdAt: "desc",
     },
   });
 
+  const formattedServices = services.map((s) => ({
+    ...s,
+    durationText: formatDuration(s.duration),
+  }));
+
+  // ✅ Respond
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.service.foundSuccess,
-    services
+    formattedServices,
+    getPaginationMeta(total, page, limit)
   );
 };
