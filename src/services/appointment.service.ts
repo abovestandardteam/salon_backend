@@ -20,6 +20,7 @@ import {
 } from "@utils/helper";
 import { errorResponse, successResponse } from "@utils/response";
 import { CreateAppointmentDTO } from "@validations/appointment.validation";
+import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
 const prisma = new PrismaClient();
 
 export const createAppointment = async (body: CreateAppointmentDTO) => {
@@ -306,13 +307,15 @@ export const getAppointmentById = async (id: number) => {
 };
 
 export const getAllAppointment = async (user: any, query: any) => {
-  // 1) Determine if user is a customer
+  const { page, limit, skip } = getPaginationParams(query);
+
+  // 1) Is customer?
   const isCustomer = user.userType === "customer";
 
-  // 2) Base filter — restrict by customerId if user is a customer
+  // 2) Base filter
   const baseFilter = isCustomer ? { customerId: user.id } : {};
 
-  // 3) Optional status filter (e.g., COMPLETED, PENDING)
+  // 3) Optional status filter
   const statusFilter = query.status ? { status: query.status } : {};
 
   // 4) Merge filters
@@ -321,9 +324,14 @@ export const getAllAppointment = async (user: any, query: any) => {
     ...statusFilter,
   };
 
-  // 5) Fetch appointments
+  // 5) Get total count for pagination
+  const total = await prisma.appointment.count({ where: whereCondition });
+
+  // 6) Get paginated appointments
   const appointments = await prisma.appointment.findMany({
     where: whereCondition,
+    skip,
+    take: limit,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -340,7 +348,7 @@ export const getAllAppointment = async (user: any, query: any) => {
     },
   });
 
-  // 6) Format for output
+  // 7) Format output
   const formattedAppointments = appointments.map((a) => ({
     ...a,
     date: formatDateWithSuffix(a.date),
@@ -348,10 +356,12 @@ export const getAllAppointment = async (user: any, query: any) => {
     endTime: formatTime(a.endTime),
   }));
 
+  // 8) Return with pagination
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.appointment.foundSuccess,
-    formattedAppointments
+    formattedAppointments,
+    getPaginationMeta(total, page, limit)
   );
 };
 

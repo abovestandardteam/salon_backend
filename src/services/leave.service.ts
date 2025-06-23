@@ -7,6 +7,7 @@ import { StatusCodes } from "http-status-codes";
 import { CreateLeaveDTO } from "@validations/leave.validation";
 import { errorResponse, successResponse } from "@utils/response";
 import { formatTime } from "@utils/helper";
+import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
 const prisma = new PrismaClient();
 
 export const createLeave = async (body: CreateLeaveDTO, user: SalonUser) => {
@@ -142,20 +143,31 @@ export const getLeaveById = async (id: number) => {
 };
 
 export const getAllLeave = async (query: any) => {
+  const { page, limit, skip } = getPaginationParams(query);
+
+  // 1. Get total count
+  const total = await prisma.leave.count();
+
+  // 2. Get paginated leave records
   const leaves = await prisma.leave.findMany({
+    skip,
+    take: limit,
     orderBy: { createdAt: "desc" },
   });
 
+  // 3. Format results
   const formattedLeaves = leaves.map((leave) => ({
     ...leave,
-    startTime: formatTime(leave.startTime),
-    endTime: formatTime(leave.endTime),
+    startTime: leave.startTime ? formatTime(leave.startTime) : null,
+    endTime: leave.endTime ? formatTime(leave.endTime) : null,
     date: format(leave.date, "yyyy-MM-dd"),
   }));
 
+  // 4. Return response with pagination meta
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.leave.foundSuccess,
-    formattedLeaves
+    formattedLeaves,
+    getPaginationMeta(total, page, limit)
   );
 };
