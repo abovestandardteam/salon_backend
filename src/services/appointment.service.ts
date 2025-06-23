@@ -162,7 +162,10 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   if (overlapping) {
     return errorResponse(
       StatusCodes.CONFLICT,
-      `Time slot already booked from ${startTime} to ${format(end, "hh:mm a")}`
+      `Time slot already booked from ${startTime} to ${format(
+        end,
+        "hh:mm a"
+      ).toLowerCase()}`
     );
   }
 
