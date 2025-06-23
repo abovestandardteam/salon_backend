@@ -57,9 +57,37 @@ export const updateSalon = async (
     return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salon.notFound);
   }
 
+  const { openTime: openTimeStr, closeTime: closeTimeStr, ...rest } = data;
+
+  const today = new Date();
+  const todayString = today.toISOString().split("T")[0]; // "yyyy-MM-dd"
+
+  // Handle openTime
+  let openTime;
+  if (openTimeStr) {
+    openTime = fromZonedTime(
+      parse(`${todayString} ${openTimeStr}`, "yyyy-MM-dd hh:mm a", new Date()),
+      TimeZone.IST
+    );
+  }
+
+  // Handle closeTime
+  let closeTime;
+  if (closeTimeStr) {
+    closeTime = fromZonedTime(
+      parse(`${todayString} ${closeTimeStr}`, "yyyy-MM-dd hh:mm a", new Date()),
+      TimeZone.IST
+    );
+  }
+
+  // Perform update
   salon = await prisma.salon.update({
     where: { id },
-    data,
+    data: {
+      ...rest,
+      ...(openTime && { openTime }),
+      ...(closeTime && { closeTime }),
+    },
   });
 
   return successResponse(StatusCodes.OK, CONSTANTS.salon.updateSuccess, salon);

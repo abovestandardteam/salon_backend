@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { CONSTANTS } from "@utils/constants";
 import {
+  addDays,
   endOfDay,
   format,
   isAfter,
@@ -456,8 +457,13 @@ export const GetSlot = async (query: any) => {
     },
   });
 
+  let adjustedCloseTime = closeTime;
+  if (format(closeTime, "hh:mm a").toLowerCase() === "12:00 am") {
+    adjustedCloseTime = addDays(closeTime, 1); // Treat 12:00 am as next day's midnight
+  }
+
   // 🕰️ Generate time slots between openTime and closeTime
-  const allSlots = generateTimeSlots(openTime, closeTime, minDuration);
+  const allSlots = generateTimeSlots(openTime, adjustedCloseTime, minDuration);
 
   // ❌ Remove slots that overlap with existing appointments
   let availableSlots = allSlots.filter((slot) => {
