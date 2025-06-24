@@ -655,11 +655,11 @@ export const GetSlot = async (query: any) => {
     StatusCodes.OK,
     "Available slots fetched successfully",
     {
-      totalSlots: formattedSlots.length,
-      totalStartSlots: startOnly.length,
+      totalFullSlots: formattedSlots.length,
+      totalSlots: startOnly.length,
       date: currentDate,
       day: currentDay,
-      startTimesOnly: startOnly,
+      slots: startOnly,
       fullSlotTimings: formattedSlots,
     }
   );
