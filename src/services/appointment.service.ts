@@ -659,8 +659,8 @@ export const GetSlot = async (query: any) => {
       totalStartSlots: startOnly.length,
       date: currentDate,
       day: currentDay,
-      startTimesOnly: startOnly, // ✅ clearer than "startOnly"
-      fullSlotTimings: formattedSlots, // ✅ clearer than "slots"
+      startTimesOnly: startOnly,
+      fullSlotTimings: formattedSlots,
     }
   );
 };
