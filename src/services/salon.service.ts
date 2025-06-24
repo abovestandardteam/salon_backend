@@ -6,7 +6,7 @@ import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { CreateSalonDTO } from "../validations/salon.validation";
 import { errorResponse, successResponse } from "@utils/response";
-import { formatTime } from "@utils/helper";
+import { formatTime } from "@utils/time";
 const prisma = new PrismaClient();
 
 export const createSalon = async (body: CreateSalonDTO, user: SalonUser) => {

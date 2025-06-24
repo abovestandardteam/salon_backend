@@ -5,8 +5,10 @@ import { StatusCodes } from "http-status-codes";
 import { CONSTANTS } from "@utils/constants";
 import { generateToken } from "@utils/jwt";
 import { AppointmentStatus } from "@utils/enum";
-import { formatDateWithSuffix, formatTime } from "@utils/helper";
+
 import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
+import { formatDateWithSuffix } from "@utils/date";
+import { formatTime } from "@utils/time";
 const prisma = new PrismaClient();
 
 export const createCustomer = async (body: CreateCustomerDTO) => {

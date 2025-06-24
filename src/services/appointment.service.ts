@@ -18,16 +18,79 @@ import {
 import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { AppointmentStatus, LeaveType, TimeZone } from "@utils/enum";
-import {
-  formatDateWithSuffix,
-  formatSlot,
-  formatTime,
-  generateTimeSlots,
-} from "@utils/helper";
+import { getSalonCloseDateTime } from "@utils/salonTime";
 import { errorResponse, successResponse } from "@utils/response";
 import { CreateAppointmentDTO } from "@validations/appointment.validation";
 import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
+import { formatTime } from "@utils/time";
+import { formatDateWithSuffix } from "@utils/date";
+import { formatSlot, generateTimeSlots } from "@utils/slots";
 const prisma = new PrismaClient();
+
+const validateCustomerExists = async (customerId: number) => {
+  /**
+   * Validates if the customer with the given ID exists
+   * @param customerId The ID of the customer to validate
+   * @returns null if the customer exists, otherwise an error response
+   */
+  if (!customerId) return null;
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+  });
+
+  if (!customer) {
+    return errorResponse(
+      StatusCodes.NOT_FOUND,
+      `Customer with ID ${customerId} not found`
+    );
+  }
+
+  return null;
+};
+
+const validateAndFetchServices = async (
+  /**
+   * Validates the given service IDs and fetches them from the database.
+   * Returns an object with the fetched services and total duration, or an error response.
+   * @param {number[]} serviceIds IDs of the services to validate and fetch
+   * @param {boolean} [includeUser=false] Whether to include the user who created the services
+   * @returns {Promise<{ error: ReturnType<typeof errorResponse> } | { services: any[]; totalDuration: number }>}}
+   */
+  serviceIds: number[],
+  includeUser: boolean = false
+): Promise<
+  | { error: ReturnType<typeof errorResponse> }
+  | { services: any[]; totalDuration: number }
+> => {
+  if (!serviceIds || serviceIds.length === 0) {
+    return { services: [], totalDuration: 0 };
+  }
+
+  const services = await prisma.service.findMany({
+    where: { id: { in: serviceIds } },
+    select: {
+      id: true,
+      duration: true,
+      ...(includeUser ? { user: true } : {}),
+    },
+  });
+
+  const foundServiceIds = new Set(services.map((s) => s.id));
+  const invalidIds = serviceIds.filter((id) => !foundServiceIds.has(id));
+
+  if (invalidIds.length > 0) {
+    return {
+      error: errorResponse(
+        StatusCodes.BAD_REQUEST,
+        `Invalid service(s): ${invalidIds.join(", ")}`
+      ),
+    };
+  }
+
+  const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
+  return { services, totalDuration };
+};
 
 export const createAppointment = async (body: CreateAppointmentDTO) => {
   const { serviceIds, date: dateObject, startTime, ...rest } = body;
@@ -73,34 +136,16 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   // ────────────────────────────────────────────────
   // 🧼 Step 3: Validate Service IDs
   // ────────────────────────────────────────────────
-  const services = await prisma.service.findMany({
-    where: { id: { in: serviceIds } },
-    select: { id: true, duration: true, user: true },
-  });
+  const result = await validateAndFetchServices(serviceIds, true);
+  if ("error" in result) return result.error;
 
-  const validServiceIds = new Set(services.map((s) => s.id));
-  const invalidIds = serviceIds.filter((id) => !validServiceIds.has(id));
-
-  if (invalidIds.length > 0) {
-    return errorResponse(
-      StatusCodes.BAD_REQUEST,
-      `Invalid service(s): ${invalidIds.join(", ")}`
-    );
-  }
+  const { services, totalDuration } = result;
 
   // ────────────────────────────────────────────────
   // 👤 Step 4: Validate Customer
   // ────────────────────────────────────────────────
-  const existingCustomer = await prisma.customer.findUnique({
-    where: { id: body.customerId },
-  });
-
-  if (!existingCustomer) {
-    return errorResponse(
-      StatusCodes.NOT_FOUND,
-      `Customer with ID ${body.customerId} not found`
-    );
-  }
+  const customerError = await validateCustomerExists(body.customerId);
+  if (customerError) return customerError;
 
   // ────────────────────────────────────────────────
   // 🏠 Step 5: Fetch Salon Info and Close Time
@@ -125,11 +170,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     );
   }
 
-  let salonCloseDateTime = new Date(salon.closeTime);
-
-  if (format(salonCloseDateTime, "hh:mm a").toLowerCase() === "12:00 am") {
-    salonCloseDateTime = addDays(salonCloseDateTime, 1);
-  }
+  const salonCloseDateTime = getSalonCloseDateTime(salon.closeTime, start);
 
   // ────────────────────────────────────────────────
   // ❌ Step 6: Prevent Appointments At/After Close Time
@@ -147,7 +188,6 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   // ────────────────────────────────────────────────
   // 🕓 Step 7: Calculate Appointment End Time
   // ────────────────────────────────────────────────
-  const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
   const end = new Date(start.getTime() + totalDuration * 60_000);
 
   // ────────────────────────────────────────────────
@@ -208,7 +248,6 @@ export const updateAppointment = async (
   // 🔍 Step 1: Find Existing Appointment
   // ────────────────────────────────────────────────
   const existing = await prisma.appointment.findUnique({ where: { id } });
-
   if (!existing) {
     return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
@@ -222,40 +261,23 @@ export const updateAppointment = async (
   // 🧼 Step 3: Validate Services & Calculate Duration
   // ────────────────────────────────────────────────
   let totalDuration = 0;
+  let services = [];
 
+  // 🧼 Step 3: Validate Services & Calculate Duration
   if (serviceIds && serviceIds.length > 0) {
-    const foundServices = await prisma.service.findMany({
-      where: { id: { in: serviceIds } },
-      select: { id: true, duration: true },
-    });
+    const result = await validateAndFetchServices(serviceIds, true);
+    if ("error" in result) return result.error;
 
-    const foundServiceIds = new Set(foundServices.map((s) => s.id));
-    const invalidIds = serviceIds.filter((id) => !foundServiceIds.has(id));
-
-    if (invalidIds.length > 0) {
-      return errorResponse(
-        StatusCodes.BAD_REQUEST,
-        `Service not found: ${invalidIds.join(", ")}`
-      );
-    }
-
-    totalDuration = foundServices.reduce((sum, s) => sum + s.duration, 0);
+    services = result.services;
+    totalDuration = result.totalDuration;
   }
 
   // ────────────────────────────────────────────────
   // 👤 Step 4: Validate Customer (if updating)
   // ────────────────────────────────────────────────
   if (data.customerId) {
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { id: data.customerId },
-    });
-
-    if (!existingCustomer) {
-      return errorResponse(
-        StatusCodes.NOT_FOUND,
-        `Customer with ID ${data.customerId} not found`
-      );
-    }
+    const customerError = await validateCustomerExists(data.customerId);
+    if (customerError) return customerError;
   }
 
   // ────────────────────────────────────────────────
@@ -317,12 +339,10 @@ export const updateAppointment = async (
       );
     }
 
-    let salonCloseDateTime = new Date(salon.closeTime);
-
-    // 👀 Adjust for midnight close (12:00 AM = next day)
-    if (format(salonCloseDateTime, "hh:mm a").toLowerCase() === "12:00 am") {
-      salonCloseDateTime = addDays(salonCloseDateTime, 1);
-    }
+    const salonCloseDateTime = getSalonCloseDateTime(
+      salon.closeTime,
+      parsedStartTime
+    );
 
     // ❌ Prevent booking at/after closing time
     if (parsedStartTime >= salonCloseDateTime) {

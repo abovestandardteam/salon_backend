@@ -5,7 +5,8 @@ import { StatusCodes } from "http-status-codes";
 import { CONSTANTS } from "@utils/constants";
 import { AppointmentStatus } from "@utils/enum";
 import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
-import { formatDuration } from "@utils/helper";
+import { formatDuration } from "@utils/time";
+
 const prisma = new PrismaClient();
 
 export const createService = async (

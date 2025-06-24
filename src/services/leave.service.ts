@@ -6,8 +6,8 @@ import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { CreateLeaveDTO } from "@validations/leave.validation";
 import { errorResponse, successResponse } from "@utils/response";
-import { formatTime } from "@utils/helper";
 import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
+import { formatTime } from "@utils/time";
 const prisma = new PrismaClient();
 
 export const createLeave = async (body: CreateLeaveDTO, user: SalonUser) => {

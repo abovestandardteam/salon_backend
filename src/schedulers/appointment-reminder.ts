@@ -4,7 +4,7 @@ import { AppointmentStatus } from "@utils/enum";
 import { CRON_EXPRESSIONS } from "@utils/constants";
 import { sendNotification } from "@utils/notification";
 import { startOfDay, endOfDay } from "date-fns";
-import { formatTime } from "@utils/helper";
+import { formatTime } from "@utils/time";
 
 const todayStart = startOfDay(new Date()); // 00:00:00
 const todayEnd = endOfDay(new Date()); // 23:59:59
