@@ -163,10 +163,10 @@ export const validateSalonClosingTime = async (
   if (startTime >= salonCloseDateTime) {
     return errorResponse(
       StatusCodes.BAD_REQUEST,
-      `Appointment cannot be scheduled at ${format(
+      `Salon closes at ${format(
         salonCloseDateTime,
         "hh:mm a"
-      )} as the salon will be closed at that time.`
+      ).toLowerCase()}. Appointment not allowed after that.`
     );
   }
 
