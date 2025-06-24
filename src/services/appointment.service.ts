@@ -25,114 +25,13 @@ import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
 import { formatTime } from "@utils/time";
 import { formatDateWithSuffix } from "@utils/date";
 import { formatSlot, generateTimeSlots } from "@utils/slots";
+import {
+  checkOverlappingAppointment,
+  validateAndFetchServices,
+  validateCustomerExists,
+  validateSalonClosingTime,
+} from "@utils/appointment.helper";
 const prisma = new PrismaClient();
-
-const validateCustomerExists = async (customerId: number) => {
-  /**
-   * Validates if the customer with the given ID exists
-   * @param customerId The ID of the customer to validate
-   * @returns null if the customer exists, otherwise an error response
-   */
-  if (!customerId) return null;
-
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-  });
-
-  if (!customer) {
-    return errorResponse(
-      StatusCodes.NOT_FOUND,
-      `Customer with ID ${customerId} not found`
-    );
-  }
-
-  return null;
-};
-
-const validateAndFetchServices = async (
-  /**
-   * Validates the given service IDs and fetches them from the database.
-   * Returns an object with the fetched services and total duration, or an error response.
-   * @param {number[]} serviceIds IDs of the services to validate and fetch
-   * @param {boolean} [includeUser=false] Whether to include the user who created the services
-   * @returns {Promise<{ error: ReturnType<typeof errorResponse> } | { services: any[]; totalDuration: number }>}}
-   */
-  serviceIds: number[],
-  includeUser: boolean = false
-): Promise<
-  | { error: ReturnType<typeof errorResponse> }
-  | { services: any[]; totalDuration: number }
-> => {
-  if (!serviceIds || serviceIds.length === 0) {
-    return { services: [], totalDuration: 0 };
-  }
-
-  const services = await prisma.service.findMany({
-    where: { id: { in: serviceIds } },
-    select: {
-      id: true,
-      duration: true,
-      ...(includeUser ? { user: true } : {}),
-    },
-  });
-
-  const foundServiceIds = new Set(services.map((s) => s.id));
-  const invalidIds = serviceIds.filter((id) => !foundServiceIds.has(id));
-
-  if (invalidIds.length > 0) {
-    return {
-      error: errorResponse(
-        StatusCodes.BAD_REQUEST,
-        `Invalid service(s): ${invalidIds.join(", ")}`
-      ),
-    };
-  }
-
-  const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
-  return { services, totalDuration };
-};
-
-/**
- * Checks if the given time slot is available for booking.
- * @param date - The date of the appointment.
- * @param start - The start time of the appointment.
- * @param end - The end time of the appointment.
- * @param startTimeLabel - The text to display for the start time in the error message.
- * @param excludeId - The ID of the appointment to exclude from the check.
- * @returns A conflict error response if there is a conflicting appointment, otherwise null.
- */
-export const checkOverlappingAppointment = async (
-  date: Date,
-  start: Date,
-  end: Date,
-  startTimeLabel: string,
-  excludeId?: number
-) => {
-  const where: any = {
-    status: AppointmentStatus.PENDING,
-    date,
-    startTime: { lt: end },
-    endTime: { gt: start },
-  };
-
-  if (excludeId) {
-    where.id = { not: excludeId };
-  }
-
-  const overlap = await prisma.appointment.findFirst({ where });
-
-  if (overlap) {
-    return errorResponse(
-      StatusCodes.CONFLICT,
-      `Time slot already booked from ${startTimeLabel} to ${format(
-        end,
-        "hh:mm a"
-      ).toLowerCase()}`
-    );
-  }
-
-  return null; // means no conflict
-};
 
 export const createAppointment = async (body: CreateAppointmentDTO) => {
   const { serviceIds, date: dateObject, startTime, ...rest } = body;
@@ -142,9 +41,8 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
       "Start time is required to create an appointment"
     );
   }
-  // ────────────────────────────────────────────────
+
   // 📅 Step 1: Parse Date and StartTime (Handle "12:00 am")
-  // ────────────────────────────────────────────────
   const dateString = dateObject.toISOString().split("T")[0];
 
   // Adjust the date if "12:00 am" is provided — treat it as next day midnight
@@ -164,9 +62,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     TimeZone.IST
   );
 
-  // ────────────────────────────────────────────────
   // ⛔ Step 2: Reject if StartTime is in the past
-  // ────────────────────────────────────────────────
   const now = new Date();
   if (start < now) {
     return errorResponse(
@@ -175,66 +71,27 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
     );
   }
 
-  // ────────────────────────────────────────────────
   // 🧼 Step 3: Validate Service IDs
-  // ────────────────────────────────────────────────
   const result = await validateAndFetchServices(serviceIds, true);
   if ("error" in result) return result.error;
 
   const { services, totalDuration } = result;
 
-  // ────────────────────────────────────────────────
   // 👤 Step 4: Validate Customer
-  // ────────────────────────────────────────────────
   const customerError = await validateCustomerExists(body.customerId);
   if (customerError) return customerError;
 
-  // ────────────────────────────────────────────────
   // 🏠 Step 5: Fetch Salon Info and Close Time
-  // ────────────────────────────────────────────────
-  if (!services[0].user.salonId) {
-    return errorResponse(
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      "SalonId not found for the service"
-    );
-  }
+  const validation = await validateSalonClosingTime(
+    Number(services[0].id),
+    start
+  );
+  if (validation !== true) return validation;
 
-  const salon = await prisma.salon.findFirst({
-    where: {
-      id: services[0].user.salonId,
-    },
-  });
-
-  if (!salon || !salon.closeTime) {
-    return errorResponse(
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      "Salon closing time is not configured"
-    );
-  }
-
-  const salonCloseDateTime = getSalonCloseDateTime(salon.closeTime, start);
-
-  // ────────────────────────────────────────────────
-  // ❌ Step 6: Prevent Appointments At/After Close Time
-  // ────────────────────────────────────────────────
-  if (start >= salonCloseDateTime) {
-    return errorResponse(
-      StatusCodes.BAD_REQUEST,
-      `Appointment cannot be scheduled at ${format(
-        salonCloseDateTime,
-        "hh:mm a"
-      )} as the salon will be closed at that time. Please choose an earlier slot.`
-    );
-  }
-
-  // ────────────────────────────────────────────────
   // 🕓 Step 7: Calculate Appointment End Time
-  // ────────────────────────────────────────────────
   const end = new Date(start.getTime() + totalDuration * 60_000);
 
-  // ────────────────────────────────────────────────
   // ❌ Step 8: Check for Overlapping Appointments
-  // ────────────────────────────────────────────────
   const conflict = await checkOverlappingAppointment(
     dateObject,
     start,
@@ -243,9 +100,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   );
   if (conflict) return conflict;
 
-  // ────────────────────────────────────────────────
   // ✅ Step 9: Create Appointment
-  // ────────────────────────────────────────────────
   const appointment = await prisma.appointment.create({
     data: {
       ...rest,
@@ -260,10 +115,6 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
       services: true,
     },
   });
-
-  // ────────────────────────────────────────────────
-  // 🎉 Return Success Response
-  // ────────────────────────────────────────────────
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.appointment.createSuccess,
@@ -271,26 +122,22 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   );
 };
 
+// ---------------------------------------------------------------------------------------------------------------
+
 export const updateAppointment = async (
   id: number,
   data: Partial<CreateAppointmentDTO>
 ) => {
-  // ────────────────────────────────────────────────
   // 🔍 Step 1: Find Existing Appointment
-  // ────────────────────────────────────────────────
   const existing = await prisma.appointment.findUnique({ where: { id } });
   if (!existing) {
     return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.appointment.notFound);
   }
 
-  // ────────────────────────────────────────────────
   // 🔄 Step 2: Extract Input
-  // ────────────────────────────────────────────────
   const { serviceIds, date: dateObject, startTime, ...rest } = data;
 
-  // ────────────────────────────────────────────────
   // 🧼 Step 3: Validate Services & Calculate Duration
-  // ────────────────────────────────────────────────
   let totalDuration = 0;
   let services = [];
 
@@ -303,17 +150,13 @@ export const updateAppointment = async (
     totalDuration = result.totalDuration;
   }
 
-  // ────────────────────────────────────────────────
   // 👤 Step 4: Validate Customer (if updating)
-  // ────────────────────────────────────────────────
   if (data.customerId) {
     const customerError = await validateCustomerExists(data.customerId);
     if (customerError) return customerError;
   }
 
-  // ────────────────────────────────────────────────
   // 🕒 Step 5: Parse Start & End Time (if provided)
-  // ────────────────────────────────────────────────
   let parsedStartTime: Date | undefined = undefined;
   let parsedEndTime: Date | undefined = undefined;
 
@@ -343,53 +186,16 @@ export const updateAppointment = async (
     }
   }
 
-  // ────────────────────────────────────────────────
   // 🏠 Step 6: Fetch Salon Info and Close Time
-  // ────────────────────────────────────────────────
   if (parsedStartTime && serviceIds && serviceIds.length > 0) {
-    const serviceWithUser = await prisma.service.findFirst({
-      where: { id: serviceIds[0] },
-      include: { user: true },
-    });
-
-    if (!serviceWithUser?.user?.salonId) {
-      return errorResponse(
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        "SalonId not found for the service"
-      );
-    }
-
-    const salon = await prisma.salon.findFirst({
-      where: { id: serviceWithUser.user.salonId },
-    });
-
-    if (!salon || !salon.closeTime) {
-      return errorResponse(
-        StatusCodes.INTERNAL_SERVER_ERROR,
-        "Salon closing time is not configured"
-      );
-    }
-
-    const salonCloseDateTime = getSalonCloseDateTime(
-      salon.closeTime,
+    const validation = await validateSalonClosingTime(
+      Number(serviceIds[0]),
       parsedStartTime
     );
-
-    // ❌ Prevent booking at/after closing time
-    if (parsedStartTime >= salonCloseDateTime) {
-      return errorResponse(
-        StatusCodes.BAD_REQUEST,
-        `Appointment cannot be scheduled at ${format(
-          salonCloseDateTime,
-          "hh:mm a"
-        )} as the salon will be closed at that time. Please choose an earlier slot.`
-      );
-    }
+    if (validation !== true) return validation;
   }
 
-  // ────────────────────────────────────────────────
   // ⛔ Step 7: Reject if Start Time is in the Past
-  // ────────────────────────────────────────────────
   const now = new Date();
   if (parsedStartTime && parsedStartTime < now) {
     return errorResponse(
@@ -398,9 +204,7 @@ export const updateAppointment = async (
     );
   }
 
-  // ────────────────────────────────────────────────
   // ❌ Step 8: Check for Overlapping Appointments
-  // ────────────────────────────────────────────────
   if (parsedStartTime && parsedEndTime) {
     const conflict = await checkOverlappingAppointment(
       dateObject ?? existing.date,
@@ -412,9 +216,7 @@ export const updateAppointment = async (
     if (conflict) return conflict;
   }
 
-  // ────────────────────────────────────────────────
   // 🛠️ Step 9: Prepare Data and Update Appointment
-  // ────────────────────────────────────────────────
   const updateData: any = {
     ...rest,
     ...(dateObject && { date: dateObject }),
@@ -433,9 +235,6 @@ export const updateAppointment = async (
     include: { services: true },
   });
 
-  // ────────────────────────────────────────────────
-  // ✅ Step 10: Return Success
-  // ────────────────────────────────────────────────
   return successResponse(
     StatusCodes.OK,
     CONSTANTS.appointment.updateSuccess,
