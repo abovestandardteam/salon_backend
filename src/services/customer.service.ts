@@ -18,23 +18,33 @@ export const createCustomer = async (body: CreateCustomerDTO) => {
   });
 
   if (existingCustomer) {
-    // Step 2: If customer exists, generate a token for that customer
+    // Step 2: Update name and notification token
+    const updatedCustomer = await prisma.customer.update({
+      where: { mobileNumber: body.mobileNumber },
+      data: {
+        firstName: body.firstName,
+        lastName: body.lastName,
+        notificationToken: body.notificationToken,
+      },
+    });
+
+    // Step 3: Generate token for updated customer
     const tokenPayload = {
-      id: existingCustomer.id,
-      mobileNumber: existingCustomer.mobileNumber,
+      id: updatedCustomer.id,
+      mobileNumber: updatedCustomer.mobileNumber,
       userType: "customer",
     };
 
     const token = await generateToken(tokenPayload);
 
-    // Step 3: Return existing customer with token
+    // Step 4: Return updated customer with token
     return successResponse(StatusCodes.OK, CONSTANTS.customer.createSuccess, {
-      ...existingCustomer,
+      ...updatedCustomer,
       token,
     });
   }
 
-  // Step 4: If not found, create a new customer
+  // Step 5: If not found, create a new customer
   const newCustomer = await prisma.customer.create({
     data: {
       ...body,
