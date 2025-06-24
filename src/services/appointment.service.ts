@@ -92,6 +92,48 @@ const validateAndFetchServices = async (
   return { services, totalDuration };
 };
 
+/**
+ * Checks if the given time slot is available for booking.
+ * @param date - The date of the appointment.
+ * @param start - The start time of the appointment.
+ * @param end - The end time of the appointment.
+ * @param startTimeLabel - The text to display for the start time in the error message.
+ * @param excludeId - The ID of the appointment to exclude from the check.
+ * @returns A conflict error response if there is a conflicting appointment, otherwise null.
+ */
+export const checkOverlappingAppointment = async (
+  date: Date,
+  start: Date,
+  end: Date,
+  startTimeLabel: string,
+  excludeId?: number
+) => {
+  const where: any = {
+    status: AppointmentStatus.PENDING,
+    date,
+    startTime: { lt: end },
+    endTime: { gt: start },
+  };
+
+  if (excludeId) {
+    where.id = { not: excludeId };
+  }
+
+  const overlap = await prisma.appointment.findFirst({ where });
+
+  if (overlap) {
+    return errorResponse(
+      StatusCodes.CONFLICT,
+      `Time slot already booked from ${startTimeLabel} to ${format(
+        end,
+        "hh:mm a"
+      ).toLowerCase()}`
+    );
+  }
+
+  return null; // means no conflict
+};
+
 export const createAppointment = async (body: CreateAppointmentDTO) => {
   const { serviceIds, date: dateObject, startTime, ...rest } = body;
   if (!startTime) {
@@ -193,24 +235,13 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   // ────────────────────────────────────────────────
   // ❌ Step 8: Check for Overlapping Appointments
   // ────────────────────────────────────────────────
-  const overlapping = await prisma.appointment.findFirst({
-    where: {
-      status: AppointmentStatus.PENDING,
-      date: dateObject,
-      startTime: { lt: end },
-      endTime: { gt: start },
-    },
-  });
-
-  if (overlapping) {
-    return errorResponse(
-      StatusCodes.CONFLICT,
-      `Time slot already booked from ${startTime} to ${format(
-        end,
-        "hh:mm a"
-      ).toLowerCase()}`
-    );
-  }
+  const conflict = await checkOverlappingAppointment(
+    dateObject,
+    start,
+    end,
+    startTime
+  );
+  if (conflict) return conflict;
 
   // ────────────────────────────────────────────────
   // ✅ Step 9: Create Appointment
@@ -371,25 +402,14 @@ export const updateAppointment = async (
   // ❌ Step 8: Check for Overlapping Appointments
   // ────────────────────────────────────────────────
   if (parsedStartTime && parsedEndTime) {
-    const overlap = await prisma.appointment.findFirst({
-      where: {
-        id: { not: id },
-        status: AppointmentStatus.PENDING,
-        date: dateObject ?? existing.date,
-        startTime: { lt: parsedEndTime },
-        endTime: { gt: parsedStartTime },
-      },
-    });
-
-    if (overlap) {
-      return errorResponse(
-        StatusCodes.CONFLICT,
-        `Time slot already booked from ${startTime} to ${format(
-          parsedEndTime,
-          "hh:mm a"
-        )}`
-      );
-    }
+    const conflict = await checkOverlappingAppointment(
+      dateObject ?? existing.date,
+      parsedStartTime,
+      parsedEndTime,
+      startTime!,
+      id // exclude current appointment
+    );
+    if (conflict) return conflict;
   }
 
   // ────────────────────────────────────────────────
