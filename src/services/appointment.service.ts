@@ -18,7 +18,6 @@ import {
 import { fromZonedTime } from "date-fns-tz";
 import { StatusCodes } from "http-status-codes";
 import { AppointmentStatus, LeaveType, TimeZone } from "@utils/enum";
-import { getSalonCloseDateTime } from "@utils/salonTime";
 import { errorResponse, successResponse } from "@utils/response";
 import { CreateAppointmentDTO } from "@validations/appointment.validation";
 import { getPaginationMeta, getPaginationParams } from "@utils/pagination";
@@ -32,6 +31,8 @@ import {
   validateSalonClosingTime,
 } from "@utils/appointment.helper";
 const prisma = new PrismaClient();
+
+// ---------------------------------------------------------------------------------------------------------------  [ create ]
 
 export const createAppointment = async (body: CreateAppointmentDTO) => {
   const { serviceIds, date: dateObject, startTime, ...rest } = body;
@@ -122,7 +123,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   );
 };
 
-// ---------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------  [ update ]
 
 export const updateAppointment = async (
   id: number,
@@ -242,6 +243,8 @@ export const updateAppointment = async (
   );
 };
 
+// ---------------------------------------------------------------------------------------------------------------  [ update status ]
+
 export const updateAppointmentStatus = async (
   appointmentId: number,
   body: { status: AppointmentStatus }
@@ -266,6 +269,8 @@ export const updateAppointmentStatus = async (
   );
 };
 
+// ---------------------------------------------------------------------------------------------------------------  [ delete ]
+
 export const deleteAppointment = async (id: number) => {
   const appointment = await prisma.appointment.findUnique({ where: { id } });
 
@@ -283,6 +288,8 @@ export const deleteAppointment = async (id: number) => {
     deletedService
   );
 };
+
+// ---------------------------------------------------------------------------------------------------------------  [ get one ]
 
 export const getAppointmentById = async (id: number) => {
   const appointment = await prisma.appointment.findUnique({
@@ -308,6 +315,8 @@ export const getAppointmentById = async (id: number) => {
     formattedSlot
   );
 };
+
+// ---------------------------------------------------------------------------------------------------------------  [ get all ]
 
 export const getAllAppointment = async (user: any, query: any) => {
   const { page, limit, skip } = getPaginationParams(query);
@@ -367,6 +376,8 @@ export const getAllAppointment = async (user: any, query: any) => {
     getPaginationMeta(total, page, limit)
   );
 };
+
+// ---------------------------------------------------------------------------------------------------------------  [ get slots ]
 
 export const GetSlot = async (query: any) => {
   const inputDate = query.date ? new Date(query.date) : new Date();
