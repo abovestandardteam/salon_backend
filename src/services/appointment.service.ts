@@ -10,6 +10,9 @@ import {
   isSameDay,
   parse,
   parseISO,
+  setHours,
+  setMinutes,
+  setSeconds,
   startOfDay,
 } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
@@ -530,11 +533,9 @@ export const GetSlot = async (query: any) => {
   const inputDate = query.date ? new Date(query.date) : new Date();
   const today = isNaN(inputDate.getTime()) ? new Date() : inputDate;
 
-  // 📅 Get today's date, day name, and time range
   const currentDate = format(today, "yyyy-MM-dd");
   const currentDay = format(today, "EEEE");
 
-  // 🏠 Fetch salon info
   const salon = await prisma.salon.findFirst();
   if (!salon) {
     return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.salon.notFound);
@@ -545,7 +546,27 @@ export const GetSlot = async (query: any) => {
     throw new Error("Open or Close time is missing");
   }
 
-  // 💇‍♀️ Get all services and determine shortest duration
+  // 🕒 Convert openTime and closeTime to today's date (time only)
+  const openHours = openTime.getHours();
+  const openMinutes = openTime.getMinutes();
+  const closeHours = closeTime.getHours();
+  const closeMinutes = closeTime.getMinutes();
+
+  let adjustedOpenTime = setSeconds(
+    setMinutes(setHours(today, openHours), openMinutes),
+    0
+  );
+  let adjustedCloseTime = setSeconds(
+    setMinutes(setHours(today, closeHours), closeMinutes),
+    0
+  );
+
+  // Treat 12:00 AM as next day's midnight
+  if (format(adjustedCloseTime, "hh:mm a").toLowerCase() === "12:00 am") {
+    adjustedCloseTime = addDays(adjustedCloseTime, 1);
+  }
+
+  // 🎯 Get shortest service duration
   const services = await prisma.service.findMany();
   if (services.length === 0) {
     return errorResponse(StatusCodes.NOT_FOUND, CONSTANTS.service.notFound);
@@ -553,11 +574,9 @@ export const GetSlot = async (query: any) => {
 
   const minDuration = Math.min(...services.map((s) => s.duration));
 
-  // ⏳ Define today's range in UTC (adjusted from IST)
   const start = startOfDay(today);
   const end = endOfDay(today);
 
-  // 📆 Check if there's a leave today
   const leaveToday = await prisma.leave.findFirst({
     where: {
       date: {
@@ -567,7 +586,6 @@ export const GetSlot = async (query: any) => {
     },
   });
 
-  // 🚫 If it's a full-day leave, return no slots
   if (leaveToday?.type === LeaveType.DAY) {
     return successResponse(StatusCodes.OK, CONSTANTS.salon.close, {
       date: currentDate,
@@ -576,7 +594,6 @@ export const GetSlot = async (query: any) => {
     });
   }
 
-  // 📋 Get today's pending appointments
   const appointments = await prisma.appointment.findMany({
     where: {
       status: AppointmentStatus.PENDING,
@@ -591,15 +608,14 @@ export const GetSlot = async (query: any) => {
     },
   });
 
-  let adjustedCloseTime = closeTime;
-  if (format(closeTime, "hh:mm a").toLowerCase() === "12:00 am") {
-    adjustedCloseTime = addDays(closeTime, 1); // Treat 12:00 am as next day's midnight
-  }
+  // ⏳ Generate all slots between open and close
+  const allSlots = generateTimeSlots(
+    adjustedOpenTime,
+    adjustedCloseTime,
+    minDuration
+  );
 
-  // 🕰️ Generate time slots between openTime and closeTime
-  const allSlots = generateTimeSlots(openTime, adjustedCloseTime, minDuration);
-
-  // ❌ Remove slots that overlap with existing appointments
+  // ❌ Remove overlapping appointment slots
   let availableSlots = allSlots.filter((slot) => {
     return !appointments.some((appt) => {
       if (!appt.startTime || !appt.endTime) return false;
@@ -611,13 +627,13 @@ export const GetSlot = async (query: any) => {
     });
   });
 
-  // ❌ Filter out past slots (if date is today)
+  // ❌ Remove past slots (if today)
   const now = new Date();
   if (isSameDay(today, now)) {
     availableSlots = availableSlots.filter((slot) => isAfter(slot.start, now));
   }
 
-  // ⛔ Remove slots affected by hour-based leave
+  // ❌ Remove slots overlapping with hour-based leave
   if (
     leaveToday?.type === LeaveType.HOURS &&
     leaveToday.startTime &&
@@ -631,14 +647,10 @@ export const GetSlot = async (query: any) => {
     });
   }
 
-  // ✅ Format remaining slots to { start: "hh:mm am/pm", end: "hh:mm am/pm" }
+  // ✅ Format slots to { start: "hh:mm am/pm", end: "hh:mm am/pm" }
   const formattedSlots = availableSlots.map(formatSlot);
+  const startOnly = formattedSlots.map((slot) => slot.start);
 
-  const startOnly = formattedSlots.map((slot) => {
-    return slot.start;
-  });
-
-  // 🎉 Return response
   return successResponse(
     StatusCodes.OK,
     "Available slots fetched successfully",
@@ -647,8 +659,8 @@ export const GetSlot = async (query: any) => {
       totalStartSlots: startOnly.length,
       date: currentDate,
       day: currentDay,
-      startOnly: startOnly,
-      slots: formattedSlots,
+      startTimesOnly: startOnly, // ✅ clearer than "startOnly"
+      fullSlotTimings: formattedSlots, // ✅ clearer than "slots"
     }
   );
 };
