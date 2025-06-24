@@ -378,7 +378,6 @@ export const getAllAppointment = async (user: any, query: any) => {
 };
 
 // ---------------------------------------------------------------------------------------------------------------  [ get slots ]
-
 export const GetSlot = async (query: any) => {
   const inputDate = query.date ? new Date(query.date) : new Date();
   const today = isNaN(inputDate.getTime()) ? new Date() : inputDate;
@@ -427,7 +426,8 @@ export const GetSlot = async (query: any) => {
   const start = startOfDay(today);
   const end = endOfDay(today);
 
-  const leaveToday = await prisma.leave.findFirst({
+  // Get all leaves (DAY and HOURS) for the day
+  const todaysLeaves = await prisma.leave.findMany({
     where: {
       date: {
         gte: start,
@@ -436,7 +436,9 @@ export const GetSlot = async (query: any) => {
     },
   });
 
-  if (leaveToday?.type === LeaveType.DAY) {
+  // Handle DAY-type leave (if any)
+  const dayLeave = todaysLeaves.find((l) => l.type === LeaveType.DAY);
+  if (dayLeave) {
     return successResponse(StatusCodes.OK, CONSTANTS.salon.close, {
       date: currentDate,
       day: currentDay,
@@ -484,13 +486,14 @@ export const GetSlot = async (query: any) => {
   }
 
   // ❌ Remove slots overlapping with hour-based leave
-  if (
-    leaveToday?.type === LeaveType.HOURS &&
-    leaveToday.startTime &&
-    leaveToday.endTime
-  ) {
-    const leaveStart = new Date(leaveToday.startTime);
-    const leaveEnd = new Date(leaveToday.endTime);
+  // Handle HOURS-type leaves
+  const hourLeaves = todaysLeaves.filter(
+    (l) => l.type === LeaveType.HOURS && l.startTime && l.endTime
+  );
+  for (const leave of hourLeaves) {
+    if (!leave.startTime || !leave.endTime) continue;
+    const leaveStart = new Date(leave.startTime);
+    const leaveEnd = new Date(leave.endTime);
 
     availableSlots = availableSlots.filter((slot) => {
       return !(slot.start < leaveEnd && slot.end > leaveStart);

@@ -1,5 +1,5 @@
 import { PrismaClient, SalonUser } from "@prisma/client";
-import { TimeZone } from "@utils/enum";
+import { LeaveType, TimeZone } from "@utils/enum";
 import { parse, format } from "date-fns";
 import { CONSTANTS } from "@utils/constants";
 import { fromZonedTime } from "date-fns-tz";
@@ -11,12 +11,30 @@ import { formatTime } from "@utils/time";
 const prisma = new PrismaClient();
 
 export const createLeave = async (body: CreateLeaveDTO, user: SalonUser) => {
-  const { date: dateString, startTime, endTime, ...rest } = body;
+  const { date: dateString, startTime, endTime, type, ...rest } = body;
 
-  // Parse only the date portion
+  // Parse date only
   const parsedDate = parse(dateString, "yyyy-MM-dd", new Date());
 
-  // Combine date + time and convert from user's timezone to UTC
+  // 🔍 Check if a DAY leave already exists for that date
+  if (type === LeaveType.DAY) {
+    const existingDayLeave = await prisma.leave.findFirst({
+      where: {
+        date: parsedDate,
+        type: LeaveType.DAY,
+        userId: user.id,
+      },
+    });
+
+    if (existingDayLeave) {
+      return errorResponse(
+        StatusCodes.BAD_REQUEST,
+        `You’ve already scheduled a full-day leave on ${dateString}.`
+      );
+    }
+  }
+
+  // ⏱ Parse start and end time (for HOUR-based leave)
   const parsedStartTime = startTime
     ? fromZonedTime(
         parse(`${dateString} ${startTime}`, "yyyy-MM-dd hh:mm a", new Date()),
@@ -35,9 +53,10 @@ export const createLeave = async (body: CreateLeaveDTO, user: SalonUser) => {
     data: {
       ...rest,
       userId: user.id,
-      date: parsedDate, // This stores the date (no time component)
+      date: parsedDate,
       startTime: parsedStartTime,
       endTime: parsedEndTime,
+      type,
     },
   });
 
@@ -60,13 +79,36 @@ export const updateLeave = async (
 
   const updates: any = { ...data };
 
-  // 🗓️ Ensure parsedDate is available for time parsing
+  // 🗓️ Determine the date for validation and parsing
   const dateInput = data.date ?? existingLeave.date;
   const parsedDate =
     typeof dateInput === "string"
       ? parse(dateInput, "yyyy-MM-dd", new Date())
       : dateInput;
 
+  // ❌ Prevent duplicate full-day leave on same date
+  if (data.type === LeaveType.DAY) {
+    const existingDayLeave = await prisma.leave.findFirst({
+      where: {
+        id: { not: id }, // Exclude current leave
+        userId: existingLeave.userId,
+        date: parsedDate,
+        type: LeaveType.DAY,
+      },
+    });
+
+    if (existingDayLeave) {
+      return errorResponse(
+        StatusCodes.BAD_REQUEST,
+        `You’ve already scheduled a full-day leave on ${format(
+          parsedDate,
+          "yyyy-MM-dd"
+        )}.`
+      );
+    }
+  }
+
+  // Update parsed date
   if (data.date) {
     updates.date = parsedDate;
   }
