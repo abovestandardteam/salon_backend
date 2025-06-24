@@ -660,7 +660,7 @@ export const GetSlot = async (query: any) => {
       date: currentDate,
       day: currentDay,
       slots: startOnly,
-      fullSlotTimings: formattedSlots,
+      fullSlots: formattedSlots,
     }
   );
 };
