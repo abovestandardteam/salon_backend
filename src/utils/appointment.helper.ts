@@ -67,7 +67,7 @@ export const validateAndFetchServices = async (
     return {
       error: errorResponse(
         StatusCodes.BAD_REQUEST,
-        `Invalid service(s): ${invalidIds.join(", ")}`
+        `Service(s) not found: ${invalidIds.join(", ")}`
       ),
     };
   }

@@ -68,7 +68,7 @@ export const createAppointment = async (body: CreateAppointmentDTO) => {
   if (start < now) {
     return errorResponse(
       StatusCodes.BAD_REQUEST,
-      `You cannot book an appointment in the past time`
+      CONSTANTS.appointment.notBookableInPast
     );
   }
 
@@ -201,7 +201,7 @@ export const updateAppointment = async (
   if (parsedStartTime && parsedStartTime < now) {
     return errorResponse(
       StatusCodes.BAD_REQUEST,
-      `You cannot book an appointment in the past time`
+      CONSTANTS.appointment.notBookableInPast
     );
   }
 

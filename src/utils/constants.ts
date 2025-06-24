@@ -22,6 +22,7 @@ export const CONSTANTS = {
     deleteSuccess: "Appointment deleted successfully.",
     foundSuccess: "Appointment found successfully.",
     notFound: "Appointment not found.",
+    notBookableInPast: "Cannot book an appointment in the past.",
   },
   leave: {
     createSuccess: "Leave created successfully.",
